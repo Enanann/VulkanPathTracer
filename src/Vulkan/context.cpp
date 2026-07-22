@@ -281,7 +281,7 @@ std::string Context::getVersionString(uint32_t version) {
 }
 
 void Context::printPhysicalDeviceProperties(const vk::PhysicalDeviceProperties2& properties) {
-    LOGI(" - Device Name    : {}", std::string(properties.properties.deviceName));
+    LOGI(" - Device Name    : {}", std::string(properties.properties.deviceName.data()));
     LOGI(" - Vendor         : {}", getVendorName(properties.properties.vendorID));
     LOGI(" - Driver Version : {}", getVersionString(properties.properties.driverVersion));
     LOGI(" - API Version    : {}", getVersionString(properties.properties.apiVersion));
