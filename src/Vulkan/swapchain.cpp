@@ -91,6 +91,25 @@ void Swapchain::initResources(GLFWwindow* window) {
     LOGI(" - Swapchain image format: {}", vk::to_string(getSwapchainImageFormat()));
 }
 
+void Swapchain::reinitResources(GLFWwindow* window) {
+    // Handle minimization
+    int width{};
+    int height{};
+    glfwGetFramebufferSize(window, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    // Clean up swapchain
+    m_queue.queue.waitIdle(); // wait for all frames to finish rendering to recreate the swapchain
+    m_images.clear();
+    m_frameResources.clear();
+
+    m_needRebuild = false;
+    initResources(window);
+}
+
 [[nodiscard]] std::pair<vk::Result, uint32_t> Swapchain::acquireNextImage(uint32_t frameIndex) {
     auto [result, imageIndex] = m_swapchain.acquireNextImage(std::numeric_limits<uint64_t>::max(), *m_frameResources[frameIndex].imageAvailableSemaphore, VK_NULL_HANDLE);
     return {result, imageIndex};

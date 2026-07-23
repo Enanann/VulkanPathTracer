@@ -1,9 +1,11 @@
 #include "application.hpp"
 
 #include "barriers.hpp"
+#include "vulkan/vulkan.hpp"
 
 #include <array>
 #include <limits>
+#include <stdexcept>
 #include <vulkan/vulkan.hpp>
 
 Application::Application() {
@@ -69,6 +71,12 @@ void Application::run() {
 }
 
 void Application::drawFrame() {
+    // Recreate swapchain
+    if (m_swapchain.needRebuild()) {
+        m_swapchain.reinitResources(m_window.getGLFWHandle());
+        return;
+    }
+
     // wait for last frame (timelinesemaphore)
     uint64_t waitValue = m_timelineSemaphore.getWaitValue(MAX_FRAMES_IN_FLIGHT);
     auto semaphoreResult = m_context.getDeviceRAII().waitSemaphores(
@@ -87,6 +95,14 @@ void Application::drawFrame() {
 
     // Acquire swapchain image
     auto [result, imageIndex] = m_swapchain.acquireNextImage(frameIndex);
+    if (result == vk::Result::eErrorOutOfDateKHR) {
+        m_swapchain.requestRebuild();
+        return;
+    }
+    if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
+        assert(result == vk::Result::eTimeout || result == vk::Result::eNotReady);
+        throw std::runtime_error("Failed to acquire swapchain image");
+    }
 
     // Record command buffer
     auto& cmd = m_ManagedCommandPools.acquireCommandBuffer(frameIndex);
@@ -185,4 +201,9 @@ void Application::drawFrame() {
     queue.submit2(graphicsSubmitInfo);
 
     auto presentResult = m_swapchain.presentFrame(imageIndex);
+    if ((presentResult == vk::Result::eSuboptimalKHR) || (presentResult == vk::Result::eErrorOutOfDateKHR)) {
+        m_swapchain.requestRebuild();
+    } else {
+        assert(presentResult == vk::Result::eSuccess);
+    }
 }

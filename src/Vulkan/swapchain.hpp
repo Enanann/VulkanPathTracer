@@ -31,6 +31,11 @@ public:
 
     void initResources(GLFWwindow* window);
 
+    // Recreate the swapchain (typically after a window resize)
+    void reinitResources(GLFWwindow* window);
+
+    void requestRebuild() {m_needRebuild = true;};
+    bool needRebuild() const {return m_needRebuild;}
     [[nodiscard]] vk::Format      getSwapchainImageFormat() const noexcept {return m_surfaceFormat.surfaceFormat.format;}
     const vk::raii::SwapchainKHR& getSwapchainRAII() const noexcept {return m_swapchain;}
     vk::Image                     getImage(uint32_t imageIndex) const noexcept {return m_images[imageIndex].image;}
@@ -99,6 +104,7 @@ private:
 
     std::vector<Image>          m_images{};              // Swapchain images and their views
     std::vector<FrameResources> m_frameResources{};      // Synchronization for each frame in flight
+    bool                        m_needRebuild{false};    // Indicating if the swapchain need to be rebuild
 
     const vk::raii::PhysicalDevice* m_physicalDevice;
     const vk::raii::Device*         m_device;         
