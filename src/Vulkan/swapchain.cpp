@@ -4,7 +4,6 @@
 #include <vulkan/vulkan_to_string.hpp>
 
 #include <algorithm>
-#include <cstdint>
 #include <limits>
 #include <stdexcept>
 

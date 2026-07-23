@@ -2,7 +2,6 @@
 
 #include "log.hpp"
 #include "shader.hpp"
-#include "vulkan/vulkan.hpp"
 
 namespace poki {
 

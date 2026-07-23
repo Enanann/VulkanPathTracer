@@ -3,10 +3,10 @@
 #include "resources.hpp"
 
 #include "GLFW/glfw3.h"
-#include <cstdint>
-#include <utility>
 #include <vulkan/vulkan_raii.hpp>
 
+#include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace poki {

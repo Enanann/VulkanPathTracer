@@ -1,13 +1,10 @@
 #include "application.hpp"
 
 #include "barriers.hpp"
-#include "vulkan/vulkan.hpp"
 
 #include <array>
 #include <limits>
 #include <stdexcept>
-#include <print>
-#include <vulkan/vulkan.hpp>
 
 Application::Application() {
     poki::WindowInitInfo windowInitInfo{ // create glfw window first, if not (glfwinit()) will make glfwGetRequiredInstanceExtensions() wrong
