@@ -92,7 +92,7 @@ void Swapchain::initResources(GLFWwindow* window) {
 }
 
 void Swapchain::reinitResources(GLFWwindow* window) {
-    // Handle minimization
+    // Handle window minimization
     int width{};
     int height{};
     glfwGetFramebufferSize(window, &width, &height);
@@ -101,31 +101,42 @@ void Swapchain::reinitResources(GLFWwindow* window) {
         glfwWaitEvents();
     }
 
-    // Clean up swapchain
+    // Clean up the swapchain
     m_queue.queue.waitIdle(); // wait for all frames to finish rendering to recreate the swapchain
     m_images.clear();
     m_frameResources.clear();
 
+    // Rebuild the swapchain
     m_needRebuild = false;
+    // We need to explicitly delete the old vk::raii::SwapchainKHR because initResources() doesn't do it fast enough 
+    m_swapchain.clear();
     initResources(window);
 }
 
 [[nodiscard]] std::pair<vk::Result, uint32_t> Swapchain::acquireNextImage(uint32_t frameIndex) {
-    auto [result, imageIndex] = m_swapchain.acquireNextImage(std::numeric_limits<uint64_t>::max(), *m_frameResources[frameIndex].imageAvailableSemaphore, VK_NULL_HANDLE);
-    return {result, imageIndex};
+    try {
+        auto [result, imageIndex] = m_swapchain.acquireNextImage(std::numeric_limits<uint64_t>::max(), *m_frameResources[frameIndex].imageAvailableSemaphore, VK_NULL_HANDLE);
+        return {result, imageIndex};
+    } catch (const vk::OutOfDateKHRError&) { // Catch vk::OutOfDateKHRError since Vulkan count this as a throw
+        return {vk::Result::eErrorOutOfDateKHR, 0};
+    }
 }
 
 [[nodiscard]] vk::Result Swapchain::presentFrame(uint32_t imageIndex) {
-    vk::PresentInfoKHR presentInfo{
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores    = &*m_images[imageIndex].renderFinishedSemaphore,
-        .swapchainCount = 1,
-        .pSwapchains = &*m_swapchain,
-        .pImageIndices = &imageIndex
-    };
-
-    auto result = m_queue.queue.presentKHR(presentInfo);
-    return result;
+    try {
+        vk::PresentInfoKHR presentInfo{
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores    = &*m_images[imageIndex].renderFinishedSemaphore,
+            .swapchainCount = 1,
+            .pSwapchains = &*m_swapchain,
+            .pImageIndices = &imageIndex
+        };
+    
+        auto result = m_queue.queue.presentKHR(presentInfo);
+        return result;
+    } catch (const vk::OutOfDateKHRError&) { // Catch vk::OutOfDateKHRError since Vulkan count this as a throw
+        return vk::Result::eErrorOutOfDateKHR;
+    }
 }
 
 vk::SurfaceFormat2KHR Swapchain::chooseSurfaceFormat(const std::vector<vk::SurfaceFormat2KHR>& availableSurfaceFormats) {

@@ -6,6 +6,7 @@
 #include <array>
 #include <limits>
 #include <stdexcept>
+#include <print>
 #include <vulkan/vulkan.hpp>
 
 Application::Application() {
@@ -203,6 +204,7 @@ void Application::drawFrame() {
     auto presentResult = m_swapchain.presentFrame(imageIndex);
     if ((presentResult == vk::Result::eSuboptimalKHR) || (presentResult == vk::Result::eErrorOutOfDateKHR)) {
         m_swapchain.requestRebuild();
+        return;
     } else {
         assert(presentResult == vk::Result::eSuccess);
     }
