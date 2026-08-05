@@ -25,7 +25,12 @@ void GraphicsPipeline::init(const GraphicsPipelineInitInfo& initInfo) {
     };
 
     // Vertex Input
-    vk::PipelineVertexInputStateCreateInfo vertexInputCreateInfo {};
+    vk::PipelineVertexInputStateCreateInfo vertexInputCreateInfo {
+        .vertexBindingDescriptionCount   = static_cast<uint32_t>(initInfo.vertexBindings.size()),
+        .pVertexBindingDescriptions      = initInfo.vertexBindings.data(),
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(initInfo.vertexAttributes.size()),
+        .pVertexAttributeDescriptions    = initInfo.vertexAttributes.data()
+    };
 
     // Input Assembly
     vk::PipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo{

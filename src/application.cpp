@@ -1,10 +1,18 @@
 #include "application.hpp"
 
 #include "barriers.hpp"
+#include "vertex.hpp"
 
 #include <array>
 #include <limits>
 #include <stdexcept>
+#include <vulkan/vulkan.hpp>
+
+const std::vector<Vertex> vertices = {
+    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f},  {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+};
 
 Application::Application() {
     poki::WindowInitInfo windowInitInfo{ // create glfw window first, if not (glfwinit()) will make glfwGetRequiredInstanceExtensions() wrong
@@ -41,12 +49,16 @@ Application::Application() {
     m_swapchain.initResources(m_window.getGLFWHandle());
 
     std::vector<poki::ShaderStageInfo> shaderStages{{vk::ShaderStageFlagBits::eVertex, "vertMain"}, {vk::ShaderStageFlagBits::eFragment, "fragMain"}};
+    auto vertexBindingDescription{Vertex::getBindingDescription()};
+    auto vertexAttributeDescription{Vertex::getAttributeDescriptions()};
     poki::GraphicsPipelineInitInfo graphicsPipelineInitInfo{
         .device = m_context.getDeviceRAII(),
         .shaderPath = "build/src/Shaders/shader_base.spv",
         .shaderStages = shaderStages,
         .colorFormat = m_swapchain.getSwapchainImageFormat(),
-        .enableDepth = vk::False
+        .enableDepth = vk::False,
+        .vertexBindings = vertexBindingDescription,
+        .vertexAttributes = vertexAttributeDescription
     };
     m_graphicsPipeline.init(graphicsPipelineInitInfo);
 
@@ -58,6 +70,18 @@ Application::Application() {
     m_ManagedCommandPools.init(managedCommandPoolsInitInfo);
 
     m_timelineSemaphore = poki::TimelineSemaphore(m_context.getDeviceRAII(), 0);
+
+    poki::ResourceAllocatorInitInfo RAInitInfo {
+        .instance = m_context.getInstanceRAII(),
+        .device  = m_context.getDeviceRAII(),
+        .physicalDevice = m_context.getPhysicalDeviceRAII(),
+        .allocInfo = {{}, *m_context.getPhysicalDeviceRAII()} 
+    };
+    m_resouceAllocator.init(RAInitInfo);
+
+    m_vertexBuffer = m_resouceAllocator.createBuffer({.size = sizeof(vertices[0]) * vertices.size(), .usage = vk::BufferUsageFlagBits::eVertexBuffer, .sharingMode = vk::SharingMode::eExclusive}, 
+                                                     {.flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eHostAccessAllowTransferInstead | vma::AllocationCreateFlagBits::eMapped, .usage = vma::MemoryUsage::eAuto},
+                                                     vertices.data());
 }
 
 void Application::run() {
@@ -141,6 +165,7 @@ void Application::drawFrame() {
     
         cmd.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapchain.getExtent().width), static_cast<float>(m_swapchain.getExtent().height)));
         cmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapchain.getExtent()));
+        cmd.bindVertexBuffers(0, *m_vertexBuffer, {0});
         cmd.draw(3, 1, 0, 0);
         cmd.endRendering();
 

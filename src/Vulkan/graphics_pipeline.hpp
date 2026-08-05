@@ -28,6 +28,9 @@ struct GraphicsPipelineInitInfo {
     std::span<ShaderStageInfo> shaderStages;
     vk::Format                 colorFormat;
     vk::Bool32                 enableDepth{vk::False};
+
+    std::span<const vk::VertexInputBindingDescription>   vertexBindings;
+    std::span<const vk::VertexInputAttributeDescription> vertexAttributes;
 };
 
 class GraphicsPipeline {
