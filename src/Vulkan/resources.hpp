@@ -2,6 +2,7 @@
 // Inspired by nvpro_core2 nvvk
 
 #include <vulkan/vulkan_raii.hpp>
+#include <vk_mem_alloc_raii.hpp>
 
 #include <cstdint>
 
@@ -19,5 +20,22 @@ struct QueueInfo {
     uint32_t queueIndex{~0U};       // Index of the queue in the family
     vk::raii::Queue queue{nullptr}; // The queue object
 };
+
+//-----------------------------------------------------------------
+// A buffer is a region of memory used to store data.
+// It's used to store vertex data, index data, uniform data, and other types of data.
+// There is a vma::raii::Buffer that represents the buffer
+// vma::raii::Buffer is a special handle variants combine resource and allocation in a single RAII object:
+// vma::raii::Buffer buffer = ...;
+// const vk::raii::Buffer& vkbuf = buffer;
+// const vma::raii::Allocation& allocation = buffer.getAllocation();
+//-----------------------------------------------------------------
+struct Buffer {
+    vma::raii::Buffer buffer{nullptr};
+    vk::DeviceSize    bufferSize{};
+    // vk::DeviceAddress address{}; // Address of the buffer in the shader
+    void*             mapping;
+};
+
 
 }; // namespace poki

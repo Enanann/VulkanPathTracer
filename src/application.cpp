@@ -1,9 +1,11 @@
 #include "application.hpp"
 
 #include "barriers.hpp"
+#include "commands.hpp"
 #include "vertex.hpp"
 
 #include <array>
+#include <cstring>
 #include <limits>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
@@ -79,9 +81,41 @@ Application::Application() {
     };
     m_resouceAllocator.init(RAInitInfo);
 
-    m_vertexBuffer = m_resouceAllocator.createBuffer({.size = sizeof(vertices[0]) * vertices.size(), .usage = vk::BufferUsageFlagBits::eVertexBuffer, .sharingMode = vk::SharingMode::eExclusive}, 
-                                                     {.flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eHostAccessAllowTransferInstead | vma::AllocationCreateFlagBits::eMapped, .usage = vma::MemoryUsage::eAuto},
-                                                     vertices.data());
+    // Vertex Buffer
+    auto vertexBufferSize = sizeof(vertices[0]) * vertices.size(); 
+    poki::Buffer stagingBuffer;
+    m_resouceAllocator.createBuffer(
+        stagingBuffer, 
+        {
+            .size = vertexBufferSize, 
+            .usage = vk::BufferUsageFlagBits::eTransferSrc, 
+            .sharingMode = vk::SharingMode::eExclusive
+        }, 
+        {
+            .flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            .usage = vma::MemoryUsage::eAuto
+        }
+    );
+    m_resouceAllocator.createBuffer(
+        m_vertexBuffer, 
+        {
+            .size = vertexBufferSize, 
+            .usage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, 
+            .sharingMode = vk::SharingMode::eExclusive
+        }, 
+        {
+            .flags = {}, 
+            .usage = vma::MemoryUsage::eAutoPreferDevice,
+            .memoryTypeBits = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        }
+    );
+    // Map the vertices data
+    std::memcpy(stagingBuffer.mapping, vertices.data(), vertexBufferSize);
+
+    auto tempCmdPool{poki::createTransientCommandPool(m_context.getDeviceRAII(), 0)};
+    auto singleTimeCmd{poki::createSingleTimeCommands(m_context.getDeviceRAII(), tempCmdPool)};
+    singleTimeCmd.copyBuffer(stagingBuffer.buffer, m_vertexBuffer.buffer, vk::BufferCopy{.srcOffset = 0, .dstOffset = 0, .size = vertexBufferSize});
+    poki::engSingleTimeCommands(singleTimeCmd, m_context.getDeviceRAII(), m_context.getQueueInfo(0).queue);
 }
 
 void Application::run() {
@@ -165,7 +199,7 @@ void Application::drawFrame() {
     
         cmd.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapchain.getExtent().width), static_cast<float>(m_swapchain.getExtent().height)));
         cmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapchain.getExtent()));
-        cmd.bindVertexBuffers(0, *m_vertexBuffer, {0});
+        cmd.bindVertexBuffers(0, *m_vertexBuffer.buffer, {0});
         cmd.draw(3, 1, 0, 0);
         cmd.endRendering();
 

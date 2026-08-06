@@ -6,6 +6,7 @@
 #include "graphics_pipeline.hpp"
 #include "command_pool.hpp"
 #include "semaphore.hpp"
+#include "resources.hpp"
 #include "resource_allocator.hpp"
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
@@ -28,5 +29,5 @@ private:
     poki::TimelineSemaphore m_timelineSemaphore;
 
     poki::ResourceAllocator m_resouceAllocator;
-    vma::raii::Buffer       m_vertexBuffer{nullptr};
+    poki::Buffer            m_vertexBuffer;
 };
