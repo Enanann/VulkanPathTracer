@@ -83,14 +83,6 @@ void GraphicsPipeline::init(const GraphicsPipelineInitInfo& initInfo) {
         .pAttachments    = &colorBlendAttachment
     };
 
-    // Pipeline layout
-    vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo {
-        .setLayoutCount         = 0,
-        // .pSetLayouts            = nullptr,
-        .pushConstantRangeCount = 0
-    };
-    m_pipelineLayout = vk::raii::PipelineLayout(initInfo.device, pipelineLayoutCreateInfo);
-
     // Graphics pipeline
     vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfo> pipelineCreateInfoChain {
         {
@@ -104,7 +96,7 @@ void GraphicsPipeline::init(const GraphicsPipelineInitInfo& initInfo) {
             .pDepthStencilState  = &depthCreateInfo,
             .pColorBlendState    = &colorBlending,
             .pDynamicState       = &dynamicCreateInfo,
-            .layout              = m_pipelineLayout,
+            .layout              = initInfo.layout,
             .renderPass          = nullptr
         },
         {
