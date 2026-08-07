@@ -137,7 +137,7 @@ Application::Application() {
         {
             .flags = {}, 
             .usage = vma::MemoryUsage::eAutoPreferDevice,
-            .memoryTypeBits = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+            .requiredFlags = vk::MemoryPropertyFlagBits::eDeviceLocal
         }
     );
     // Map the vertices data
@@ -163,7 +163,7 @@ Application::Application() {
             {
                 .flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
                 .usage = vma::MemoryUsage::eAuto,
-                .memoryTypeBits = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                .requiredFlags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
             }
         );
         m_uniformBuffers.emplace_back(std::move(ubo));
