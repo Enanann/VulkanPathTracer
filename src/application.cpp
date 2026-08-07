@@ -4,16 +4,33 @@
 #include "commands.hpp"
 #include "vertex.hpp"
 
+#include <vulkan/vulkan.hpp>
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <array>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
-#include <vulkan/vulkan.hpp>
+#include <chrono>
+
+static auto startTime = std::chrono::high_resolution_clock::now();
 
 const std::vector<Vertex> vertices = {
-    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{-0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f},  {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    // {{-1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    // {{-1.0f, 3.0f},  {1.0f, 1.0f, 1.0f}, {0.0f, 2.0f}},
+    // {{3.0f, -1.0f},  {0.0f, 0.0f, 1.0f}, {2.0f, 0.0f}},
+
+    {{0.0f, -0.5f}, {1.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, 0.5f},  {1.0f, 1.0f, 0.0f}, {2.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 2.0f}},
+};
+
+struct UniformBufferObject {
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
 };
 
 Application::Application() {
@@ -50,15 +67,29 @@ Application::Application() {
     m_swapchain.init(swapchainInitInfo, m_window.createSurface(m_context.getInstanceRAII()));
     m_swapchain.initResources(m_window.getGLFWHandle());
 
+    // Descriptor Sets
+    poki::DescriptorBindings bindings;
+    bindings.addBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
+    m_descriptorSetContainer.init(bindings, m_context.getDeviceRAII(), MAX_FRAMES_IN_FLIGHT, {}, vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
+
+    // Graphics Pipeline
     std::vector<poki::ShaderStageInfo> shaderStages{{vk::ShaderStageFlagBits::eVertex, "vertMain"}, {vk::ShaderStageFlagBits::eFragment, "fragMain"}};
     auto vertexBindingDescription{Vertex::getBindingDescription()};
     auto vertexAttributeDescription{Vertex::getAttributeDescriptions()};
+    vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo {
+        .setLayoutCount         = 1,
+        .pSetLayouts            = &*m_descriptorSetContainer.getLayout(),
+        .pushConstantRangeCount = 0,
+        // .pPushConstantRanges    = pcSize
+    };
+    m_pipelineLayout = vk::raii::PipelineLayout(m_context.getDeviceRAII(), pipelineLayoutCreateInfo);
     poki::GraphicsPipelineInitInfo graphicsPipelineInitInfo{
         .device = m_context.getDeviceRAII(),
         .shaderPath = "build/src/Shaders/shader_base.spv",
         .shaderStages = shaderStages,
         .colorFormat = m_swapchain.getSwapchainImageFormat(),
         .enableDepth = vk::False,
+        .layout = m_pipelineLayout,
         .vertexBindings = vertexBindingDescription,
         .vertexAttributes = vertexAttributeDescription
     };
@@ -116,6 +147,31 @@ Application::Application() {
     auto singleTimeCmd{poki::createSingleTimeCommands(m_context.getDeviceRAII(), tempCmdPool)};
     singleTimeCmd.copyBuffer(stagingBuffer.buffer, m_vertexBuffer.buffer, vk::BufferCopy{.srcOffset = 0, .dstOffset = 0, .size = vertexBufferSize});
     poki::engSingleTimeCommands(singleTimeCmd, m_context.getDeviceRAII(), m_context.getQueueInfo(0).queue);
+
+    // Uniform Buffer
+    auto uniformBufferSize = sizeof(UniformBufferObject);
+    poki::WriteSetContainer writeContainer;
+    for (auto i{0}; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        poki::Buffer ubo;
+        m_resouceAllocator.createBuffer(
+            ubo,
+            {
+                .size = uniformBufferSize,
+                .usage = vk::BufferUsageFlagBits::eUniformBuffer,
+                .sharingMode = vk::SharingMode::eExclusive
+            }, 
+            {
+                .flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+                .usage = vma::MemoryUsage::eAuto,
+                .memoryTypeBits = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            }
+        );
+        m_uniformBuffers.emplace_back(std::move(ubo));
+        
+        writeContainer.append(m_descriptorSetContainer.makeWriteSet(0, i), m_uniformBuffers[i]);
+    }
+
+    m_context.getDeviceRAII().updateDescriptorSets(writeContainer.data(), {});
 }
 
 void Application::run() {
@@ -160,6 +216,21 @@ void Application::drawFrame() {
         throw std::runtime_error("Failed to acquire swapchain image");
     }
 
+    // ubo
+    auto  currentTime = std::chrono::high_resolution_clock::now();
+    float time        = std::chrono::duration<float>(currentTime - startTime).count();
+
+    UniformBufferObject ubo{};
+    // ubo.model = glm::mat4(1.0f);
+    // ubo.view = glm::mat4(1.0f);
+    // ubo.proj = glm::mat4(1.0f);
+    ubo.model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.view  = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.proj  = glm::perspective(glm::radians(45.0f), static_cast<float>(m_swapchain.getExtent().width) / static_cast<float>(m_swapchain.getExtent().height), 0.1f, 10.0f);
+    ubo.proj[1][1] *= -1;
+
+    std::memcpy(m_uniformBuffers[frameIndex].mapping, &ubo, sizeof(ubo));
+
     // Record command buffer
     auto& cmd = m_ManagedCommandPools.acquireCommandBuffer(frameIndex);
     { // Rendering
@@ -200,6 +271,7 @@ void Application::drawFrame() {
         cmd.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapchain.getExtent().width), static_cast<float>(m_swapchain.getExtent().height)));
         cmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapchain.getExtent()));
         cmd.bindVertexBuffers(0, *m_vertexBuffer.buffer, {0});
+        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSetContainer.getSet(frameIndex), nullptr);
         cmd.draw(3, 1, 0, 0);
         cmd.endRendering();
 

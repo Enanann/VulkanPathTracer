@@ -8,6 +8,7 @@
 #include "semaphore.hpp"
 #include "resources.hpp"
 #include "resource_allocator.hpp"
+#include "descriptors.hpp"
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -20,14 +21,17 @@ public:
     void drawFrame();
 
 private:
-    poki::Context             m_context;
-    poki::Window              m_window;
-    poki::Swapchain           m_swapchain;
-    poki::GraphicsPipeline    m_graphicsPipeline;
-    poki::ManagedCommandPools m_ManagedCommandPools;
+    poki::Context                m_context;
+    poki::Window                 m_window;
+    poki::Swapchain              m_swapchain;
+    poki::DescriptorSetContainer m_descriptorSetContainer;
+    vk::raii::PipelineLayout     m_pipelineLayout{nullptr};
+    poki::GraphicsPipeline       m_graphicsPipeline;
+    poki::ManagedCommandPools    m_ManagedCommandPools;
 
     poki::TimelineSemaphore m_timelineSemaphore;
 
-    poki::ResourceAllocator m_resouceAllocator;
-    poki::Buffer            m_vertexBuffer;
+    poki::ResourceAllocator   m_resouceAllocator;
+    poki::Buffer              m_vertexBuffer;
+    std::vector<poki::Buffer> m_uniformBuffers;
 };
