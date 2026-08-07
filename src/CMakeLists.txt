@@ -26,6 +26,7 @@ set(SOURCES
     Vulkan/barriers.cpp
     Vulkan/resource_allocator.cpp
     Vulkan/vertex.cpp
+    Vulkan/descriptors.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
