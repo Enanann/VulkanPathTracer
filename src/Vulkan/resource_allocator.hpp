@@ -25,6 +25,7 @@ public:
 
     ////////////////////////////////////
 
+    // TODO: Change to return by value instead of using out variable
     // Create a vma::raii::Buffer and mapped it
     void createBuffer(poki::Buffer&                    buffer,
                       const vk::BufferCreateInfo&      bufferCreateInfo,
