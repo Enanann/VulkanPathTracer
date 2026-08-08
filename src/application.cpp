@@ -114,9 +114,7 @@ Application::Application() {
 
     // Vertex Buffer
     auto vertexBufferSize = sizeof(vertices[0]) * vertices.size(); 
-    poki::Buffer stagingBuffer;
-    m_resouceAllocator.createBuffer(
-        stagingBuffer, 
+    poki::Buffer stagingBuffer = m_resouceAllocator.createBuffer(
         {
             .size = vertexBufferSize, 
             .usage = vk::BufferUsageFlagBits::eTransferSrc, 
@@ -127,8 +125,7 @@ Application::Application() {
             .usage = vma::MemoryUsage::eAuto
         }
     );
-    m_resouceAllocator.createBuffer(
-        m_vertexBuffer, 
+    m_vertexBuffer = m_resouceAllocator.createBuffer( 
         {
             .size = vertexBufferSize, 
             .usage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, 
@@ -152,9 +149,7 @@ Application::Application() {
     auto uniformBufferSize = sizeof(UniformBufferObject);
     poki::WriteSetContainer writeContainer;
     for (auto i{0}; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-        poki::Buffer ubo;
-        m_resouceAllocator.createBuffer(
-            ubo,
+        poki::Buffer ubo = m_resouceAllocator.createBuffer(
             {
                 .size = uniformBufferSize,
                 .usage = vk::BufferUsageFlagBits::eUniformBuffer,

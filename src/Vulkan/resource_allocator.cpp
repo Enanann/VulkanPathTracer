@@ -12,11 +12,11 @@ void ResourceAllocator::init(const ResourceAllocatorInitInfo& createInfo) {
     LOGI("ResourceAllocator created successfully");
 }
     
-void ResourceAllocator::createBuffer(poki::Buffer&   buffer,
-                    const vk::BufferCreateInfo&      bufferCreateInfo,
-                    const vma::AllocationCreateInfo& allocationCreateInfo)
+poki::Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo&      bufferCreateInfo,
+                                             const vma::AllocationCreateInfo& allocationCreateInfo) const
 {
     vma::AllocationInfo allocInfoOut;
+    poki::Buffer buffer;
     buffer.buffer = m_allocator.createBuffer(bufferCreateInfo, allocationCreateInfo, &allocInfoOut);
     buffer.bufferSize = bufferCreateInfo.size;
     buffer.mapping = allocInfoOut.pMappedData;
@@ -26,6 +26,8 @@ void ResourceAllocator::createBuffer(poki::Buffer&   buffer,
     //     .buffer = buffer.buffer
     // };
     // buffer.address = m_device->getBufferAddress(info);
+
+    return buffer;
 }
 
 bool ResourceAllocator::isNonCoherentlyMapped(const poki::Buffer& buffer) const {

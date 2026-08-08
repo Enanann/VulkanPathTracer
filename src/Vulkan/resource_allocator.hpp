@@ -25,11 +25,9 @@ public:
 
     ////////////////////////////////////
 
-    // TODO: Change to return by value instead of using out variable
     // Create a vma::raii::Buffer and mapped it
-    void createBuffer(poki::Buffer&                    buffer,
-                      const vk::BufferCreateInfo&      bufferCreateInfo,
-                      const vma::AllocationCreateInfo& allocationCreateInfo);
+    poki::Buffer createBuffer(const vk::BufferCreateInfo&      bufferCreateInfo,
+                              const vma::AllocationCreateInfo& allocationCreateInfo) const;
 
     ////////////////////////////////////
     // Only legal for mapped buffers
