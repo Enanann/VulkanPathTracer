@@ -155,6 +155,26 @@ void WriteSetContainer::append(const vk::WriteDescriptorSet& writeSet, const pok
     m_needPointerUpdate = true;
 }
 
+void WriteSetContainer::append(const vk::WriteDescriptorSet& writeSet, const poki::Image& image) {
+    assert(writeSet.pBufferInfo == nullptr);
+    assert(writeSet.pTexelBufferView == nullptr);
+    assert(writeSet.descriptorCount == 1);
+    assert(image.imageView != nullptr);
+
+    vk::DescriptorImageInfo imageInfo{
+        .sampler     = image.sampler,
+        .imageView   = image.imageView,
+        .imageLayout = image.layout
+    };
+
+    m_writeSets.emplace_back(writeSet).setPImageInfo((const vk::DescriptorImageInfo*)1);
+
+    m_bufferOrImageDatas.emplace_back(imageInfo);
+
+    m_needPointerUpdate = true;
+}
+
+
 // TODO: Update to handle pImageInfo
 const std::vector<vk::WriteDescriptorSet>& WriteSetContainer::data() {
     if (m_needPointerUpdate) {
@@ -163,6 +183,10 @@ const std::vector<vk::WriteDescriptorSet>& WriteSetContainer::data() {
         for (size_t i{0}; i < m_writeSets.size(); ++i) {
             if (m_writeSets[i].pBufferInfo) {
                 m_writeSets[i].pBufferInfo = &m_bufferOrImageDatas[bufferOrImageIndex].buffer;
+                bufferOrImageIndex += m_writeSets[i].descriptorCount;
+            }
+            if (m_writeSets[i].pImageInfo) {
+                m_writeSets[i].pImageInfo = &m_bufferOrImageDatas[bufferOrImageIndex].image;
                 bufferOrImageIndex += m_writeSets[i].descriptorCount;
             }
         }

@@ -103,6 +103,7 @@ public:
               vk::DescriptorPoolCreateFlags      poolFlags   = {});
 
     // Wrapper to get a `vk::WriteDescriptorSet` for a descriptor set stored in `m_sets` if it's not empty
+    // Note: `dstSetIndex` is an index into `m_sets`, not the descriptor set number (`set = N`) in the pipeline layout.
     // See `DescriptorBinding::getWriteSet()`
     vk::WriteDescriptorSet makeWriteSet(uint32_t binding, uint32_t dstSetIndex, uint32_t dstArrayElement = ~0U, uint32_t descriptorCount = 1) const {
         // Since we're not using push descriptors, m_sets must exist
@@ -131,8 +132,7 @@ class WriteSetContainer {
 public:
     // Single element (writeSet.descriptorCount must be 1)
     void append(const vk::WriteDescriptorSet& writeSet, const poki::Buffer& buffer, vk::DeviceSize offset = 0, vk::DeviceSize range = vk::WholeSize);
-
-    // TODO: Add an overload for image descriptors
+    void append(const vk::WriteDescriptorSet& writeSet, const poki::Image& image);
 
     // TODO: Multiple element (writeSet.descriptorCount > 1)
 
@@ -140,9 +140,15 @@ public:
     const std::vector<vk::WriteDescriptorSet>& data();
 
 private:
+    // vk::DescriptorBufferInfo and vk::DescriptorInfo are the same size, 
+    // so we use an union to reduce storage overhead when `WriteSetContainer::data()` is called
     union BufferOrImageData {
         vk::DescriptorBufferInfo buffer;
         vk::DescriptorImageInfo  image;
+
+        // Required to explicitly initialize the appropriate union member
+        BufferOrImageData(vk::DescriptorBufferInfo& b) {buffer = b;}
+        BufferOrImageData(vk::DescriptorImageInfo& i) {image = i;}
     };
     static_assert(sizeof(vk::DescriptorBufferInfo) == sizeof(vk::DescriptorImageInfo));
 
