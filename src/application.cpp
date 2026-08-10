@@ -2,7 +2,10 @@
 
 #include "barriers.hpp"
 #include "commands.hpp"
+#include "descriptors.hpp"
 #include "vertex.hpp"
+#include "stb_image.h"
+#include "vulkan/vulkan.hpp"
 
 #include <vulkan/vulkan.hpp>
 #define GLM_FORCE_RADIANS
@@ -22,9 +25,13 @@ const std::vector<Vertex> vertices = {
     // {{-1.0f, 3.0f},  {1.0f, 1.0f, 1.0f}, {0.0f, 2.0f}},
     // {{3.0f, -1.0f},  {0.0f, 0.0f, 1.0f}, {2.0f, 0.0f}},
 
-    {{0.0f, -0.5f}, {1.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, 0.5f},  {1.0f, 1.0f, 0.0f}, {2.0f, 0.0f}},
-    {{-0.5f, 0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 2.0f}},
+    {{-1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    {{1.0f, 1.0f},  {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+
+    {{-1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    {{1.0f, -1.0f},  {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
+    {{1.0f, 1.0f},  {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}}
 };
 
 struct UniformBufferObject {
@@ -68,17 +75,22 @@ Application::Application() {
     m_swapchain.initResources(m_window.getGLFWHandle());
 
     // Descriptor Sets
-    poki::DescriptorBindings bindings;
-    bindings.addBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
-    m_descriptorSetContainer.init(bindings, m_context.getDeviceRAII(), MAX_FRAMES_IN_FLIGHT, {}, vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
+    poki::DescriptorBindings bindings_0; // FiF (UBO)
+    bindings_0.addBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
+    m_descriptorSetContainer_0.init(bindings_0, m_context.getDeviceRAII(), MAX_FRAMES_IN_FLIGHT, {}, vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
 
+    poki::DescriptorBindings bindings_1; // The same across multiple FiF (Texture) 
+    bindings_1.addBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
+    m_descriptorSetContainer_1.init(bindings_1, m_context.getDeviceRAII(), 1, {}, vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
+
+    std::vector<vk::DescriptorSetLayout> descriptorSetLayout = {*m_descriptorSetContainer_0.getLayout(), *m_descriptorSetContainer_1.getLayout()};
     // Graphics Pipeline
     std::vector<poki::ShaderStageInfo> shaderStages{{vk::ShaderStageFlagBits::eVertex, "vertMain"}, {vk::ShaderStageFlagBits::eFragment, "fragMain"}};
     auto vertexBindingDescription{Vertex::getBindingDescription()};
     auto vertexAttributeDescription{Vertex::getAttributeDescriptions()};
     vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo {
-        .setLayoutCount         = 1,
-        .pSetLayouts            = &*m_descriptorSetContainer.getLayout(),
+        .setLayoutCount         = static_cast<uint32_t>(descriptorSetLayout.size()),
+        .pSetLayouts            = descriptorSetLayout.data(),
         .pushConstantRangeCount = 0,
         // .pPushConstantRanges    = pcSize
     };
@@ -141,13 +153,15 @@ Application::Application() {
     std::memcpy(stagingBuffer.mapping, vertices.data(), vertexBufferSize);
 
     auto tempCmdPool{poki::createTransientCommandPool(m_context.getDeviceRAII(), 0)};
-    auto singleTimeCmd{poki::createSingleTimeCommands(m_context.getDeviceRAII(), tempCmdPool)};
-    singleTimeCmd.copyBuffer(stagingBuffer.buffer, m_vertexBuffer.buffer, vk::BufferCopy{.srcOffset = 0, .dstOffset = 0, .size = vertexBufferSize});
-    poki::engSingleTimeCommands(singleTimeCmd, m_context.getDeviceRAII(), m_context.getQueueInfo(0).queue);
+    {
+        auto singleTimeCmd{poki::createSingleTimeCommands(m_context.getDeviceRAII(), tempCmdPool)};
+        singleTimeCmd.copyBuffer(stagingBuffer.buffer, m_vertexBuffer.buffer, vk::BufferCopy{.srcOffset = 0, .dstOffset = 0, .size = vertexBufferSize});
+        poki::engSingleTimeCommands(singleTimeCmd, m_context.getDeviceRAII(), m_context.getQueueInfo(0).queue);
+    }
 
     // Uniform Buffer
     auto uniformBufferSize = sizeof(UniformBufferObject);
-    poki::WriteSetContainer writeContainer;
+    poki::WriteSetContainer writeContainer_0;
     for (auto i{0}; i < MAX_FRAMES_IN_FLIGHT; ++i) {
         poki::Buffer ubo = m_resouceAllocator.createBuffer(
             {
@@ -163,10 +177,126 @@ Application::Application() {
         );
         m_uniformBuffers.emplace_back(std::move(ubo));
         
-        writeContainer.append(m_descriptorSetContainer.makeWriteSet(0, i), m_uniformBuffers[i]);
+        writeContainer_0.append(m_descriptorSetContainer_0.makeWriteSet(0, i), m_uniformBuffers[i]);
     }
 
-    m_context.getDeviceRAII().updateDescriptorSets(writeContainer.data(), {});
+    m_context.getDeviceRAII().updateDescriptorSets(writeContainer_0.data(), {});
+
+    // Texture (Create a temporary purple texture instead of loading an image with `stbi_load()`.
+    // See the commented-out code below.)
+    int textWidth{1024};
+    int texHeight{1024};
+    int texChannels{4};
+    // stbi_uc* pixels{stbi_load("/path_to_image", &textWidth, &texHeight, &texChannels, STBI_rgb_alpha)};
+    // if (!pixels) {
+    //     throw std::runtime_error("Failed to load texture image");
+    // }
+    vk::DeviceSize texSize{static_cast<uint64_t>(textWidth * texHeight * 4)};
+    std::array<stbi_uc, 1024 * 1024 * 4> pixels;
+    for (size_t i = 0; i < pixels.size(); i += 4) {
+        pixels[i + 0] = 200; // R
+        pixels[i + 1] = 160; // G
+        pixels[i + 2] = 255; // B
+        pixels[i + 3] = 255; // A
+    }
+    
+    poki::Buffer texStagingBuffer = m_resouceAllocator.createBuffer(
+        {
+            .size = texSize,
+            .usage = vk::BufferUsageFlagBits::eTransferSrc,
+            .sharingMode = vk::SharingMode::eExclusive
+        },
+        {
+            .flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            .usage = vma::MemoryUsage::eAuto
+        }
+    );
+    std::memcpy(texStagingBuffer.mapping, pixels.data(), texSize);
+    // stbi_image_free(pixels);
+
+    vk::ImageCreateInfo texCreateInfo{
+        .imageType = vk::ImageType::e2D,
+        .format = vk::Format::eR8G8B8A8Srgb,
+        .extent = {static_cast<uint32_t>(textWidth), static_cast<uint32_t>(texHeight), 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = vk::SampleCountFlagBits::e1,
+        .tiling = vk::ImageTiling::eOptimal,
+        .usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+        .sharingMode = vk::SharingMode::eExclusive,
+        .initialLayout = vk::ImageLayout::eUndefined
+    };
+    vk::ImageViewCreateInfo texViewCreateInfo{
+        .viewType = vk::ImageViewType::e2D,
+        .format = vk::Format::eR8G8B8A8Srgb,
+        .subresourceRange = {.aspectMask = vk::ImageAspectFlagBits::eColor, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}
+    };
+    m_texture = m_resouceAllocator.createImage(texCreateInfo, texViewCreateInfo);
+
+    vk::PhysicalDeviceProperties properties = m_context.getPhysicalDeviceRAII().getProperties();
+    vk::SamplerCreateInfo        samplerInfo{.magFilter        = vk::Filter::eLinear,
+                                            .minFilter        = vk::Filter::eLinear,
+                                            .mipmapMode       = vk::SamplerMipmapMode::eLinear,
+                                            .addressModeU     = vk::SamplerAddressMode::eRepeat,
+                                            .addressModeV     = vk::SamplerAddressMode::eRepeat,
+                                            .addressModeW     = vk::SamplerAddressMode::eRepeat,
+                                            .mipLodBias       = 0.0f,
+                                            .anisotropyEnable = vk::True,
+                                            .maxAnisotropy    = properties.limits.maxSamplerAnisotropy,
+                                            .compareEnable    = vk::False,
+                                            .compareOp        = vk::CompareOp::eAlways};
+    vk::raii::Sampler textureSampler = vk::raii::Sampler(m_context.getDeviceRAII(), samplerInfo);
+    m_texture.sampler = std::move(textureSampler);
+
+    {
+        auto singleTimeCmd{poki::createSingleTimeCommands(m_context.getDeviceRAII(), tempCmdPool)};
+        poki::cmdImageMemoryBarrier(singleTimeCmd, {
+            .srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe,
+            .srcAccessMask = {},
+            .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
+            .dstAccessMask = vk::AccessFlagBits2::eTransferWrite,
+            .oldLayout = vk::ImageLayout::eUndefined,
+            .newLayout = vk::ImageLayout::eTransferDstOptimal,
+            .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+            .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+            .image = m_texture.image,
+            // .subresourceRange = {}
+        });
+        vk::BufferImageCopy2 pRegions{
+            .bufferOffset = 0, 
+            .bufferRowLength = 0, 
+            .bufferImageHeight = 0,
+            .imageSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 }, 
+            .imageOffset = {0, 0, 0}, 
+            .imageExtent = {static_cast<uint32_t>(textWidth), static_cast<uint32_t>(texHeight), 1} 
+        };
+        vk::CopyBufferToImageInfo2 copyBufferToImageInfo{
+            .srcBuffer = texStagingBuffer.buffer,
+            .dstImage  = m_texture.image,
+            .dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
+            .regionCount = 1,
+            .pRegions = &pRegions
+        };
+        singleTimeCmd.copyBufferToImage2(copyBufferToImageInfo);
+        poki::cmdImageMemoryBarrier(singleTimeCmd, {
+            .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+            .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+            .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+            .oldLayout = vk::ImageLayout::eTransferDstOptimal,
+            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+            .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+            .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+            .image = m_texture.image,
+            // .subresourceRange = {}
+        });
+        m_texture.layout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        poki::engSingleTimeCommands(singleTimeCmd, m_context.getDeviceRAII(), m_context.getQueueInfo(0).queue);
+    }
+
+    poki::WriteSetContainer writeContainer_1;
+    writeContainer_1.append(m_descriptorSetContainer_1.makeWriteSet(0, 0), m_texture);
+    m_context.getDeviceRAII().updateDescriptorSets(writeContainer_1.data(), {});
 }
 
 void Application::run() {
@@ -266,8 +396,9 @@ void Application::drawFrame() {
         cmd.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapchain.getExtent().width), static_cast<float>(m_swapchain.getExtent().height)));
         cmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapchain.getExtent()));
         cmd.bindVertexBuffers(0, *m_vertexBuffer.buffer, {0});
-        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSetContainer.getSet(frameIndex), nullptr);
-        cmd.draw(3, 1, 0, 0);
+        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSetContainer_0.getSet(frameIndex), nullptr);
+        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 1, *m_descriptorSetContainer_1.getSet(0), nullptr);
+        cmd.draw(6, 1, 0, 0);
         cmd.endRendering();
 
         poki::cmdImageMemoryBarrier(cmd, {

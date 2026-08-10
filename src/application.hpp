@@ -24,7 +24,8 @@ private:
     poki::Context                m_context;
     poki::Window                 m_window;
     poki::Swapchain              m_swapchain;
-    poki::DescriptorSetContainer m_descriptorSetContainer;
+    poki::DescriptorSetContainer m_descriptorSetContainer_0;
+    poki::DescriptorSetContainer m_descriptorSetContainer_1;
     vk::raii::PipelineLayout     m_pipelineLayout{nullptr};
     poki::GraphicsPipeline       m_graphicsPipeline;
     poki::ManagedCommandPools    m_ManagedCommandPools;
@@ -34,4 +35,5 @@ private:
     poki::ResourceAllocator   m_resouceAllocator;
     poki::Buffer              m_vertexBuffer;
     std::vector<poki::Buffer> m_uniformBuffers;
+    poki::Image m_texture;
 };
