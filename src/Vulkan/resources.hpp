@@ -37,5 +37,23 @@ struct Buffer {
     void*             mapping;
 };
 
+//-----------------------------------------------------------------
+// An image is a region of memory used to store image data.
+// It is used to store texture data, framebuffer data, and other types of data
+// vma::raii::Image represents the image, it functions the same as vma::raii::Buffer
+//-----------------------------------------------------------------
+struct Image {
+    vma::raii::Image    image{nullptr};
+    vk::Format          format{vk::Format::eUndefined};
+    vk::Extent3D        extent{};
+    uint32_t            mipLevels{1};
+    uint32_t            arrayLayers{1};
+
+    // `sampler` may exist, NOT managed by `poki::ResourceAllocator`
+    vk::raii::Sampler   sampler{nullptr};
+    // `imageView` may exist, managed by `poki::ResourceAllocator`
+    vk::raii::ImageView imageView{nullptr};
+    vk::ImageLayout     layout{vk::ImageLayout::eUndefined};
+};
 
 }; // namespace poki
