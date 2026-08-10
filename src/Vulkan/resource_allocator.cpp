@@ -30,6 +30,53 @@ poki::Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo&      bu
     return buffer;
 }
 
+poki::Image ResourceAllocator::createImage(const vk::ImageCreateInfo&       imageCreateInfo, 
+                                           const vma::AllocationCreateInfo& allocationCreateInfo) const
+{
+    vma::AllocationInfo allocInfoOut;
+    poki::Image image;
+    image.image       = m_allocator.createImage(imageCreateInfo, allocationCreateInfo, &allocInfoOut);
+    image.format      = imageCreateInfo.format;
+    image.extent      = imageCreateInfo.extent;
+    image.mipLevels   = imageCreateInfo.mipLevels;
+    image.arrayLayers = imageCreateInfo.arrayLayers;
+    
+    return image;
+}
+
+poki::Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageCreateInfo) const {
+    vma::AllocationCreateInfo allocInfo{.usage = vma::MemoryUsage::eAutoPreferDevice};
+
+    return createImage(imageCreateInfo, allocInfo);
+}
+
+poki::Image ResourceAllocator::createImage(const vk::ImageCreateInfo&       imageCreateInfo,
+                                           const vk::ImageViewCreateInfo&   imageViewCreateInfo,
+                                           const vma::AllocationCreateInfo& allocationCreateInfo) const
+{
+    vma::AllocationInfo allocInfoOut;
+    poki::Image image;
+    image.image       = m_allocator.createImage(imageCreateInfo, allocationCreateInfo, &allocInfoOut);
+    image.format      = imageCreateInfo.format;
+    image.extent      = imageCreateInfo.extent;
+    image.mipLevels   = imageCreateInfo.mipLevels;
+    image.arrayLayers = imageCreateInfo.arrayLayers;
+
+    auto viewCreateInfo = imageViewCreateInfo;
+    viewCreateInfo.image = *image.image;
+    image.imageView   = vk::raii::ImageView(*m_device, viewCreateInfo);
+    
+    return image;
+}
+
+poki::Image ResourceAllocator::createImage(const vk::ImageCreateInfo&       imageCreateInfo,
+                                           const vk::ImageViewCreateInfo&   imageViewCreateInfo) const
+{
+    vma::AllocationCreateInfo allocInfo{.usage = vma::MemoryUsage::eAutoPreferDevice};
+
+    return createImage(imageCreateInfo, imageViewCreateInfo, allocInfo);
+}
+
 bool ResourceAllocator::isNonCoherentlyMapped(const poki::Buffer& buffer) const {
     assert(buffer.mapping);
     vk::MemoryPropertyFlags memFlags = buffer.buffer.getAllocation().getMemoryProperties();

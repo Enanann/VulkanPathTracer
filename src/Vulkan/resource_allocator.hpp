@@ -29,6 +29,22 @@ public:
     poki::Buffer createBuffer(const vk::BufferCreateInfo&      bufferCreateInfo,
                               const vma::AllocationCreateInfo& allocationCreateInfo) const;
 
+    // Create a vma::raii::Image with provided allocation information
+    poki::Image createImage(const vk::ImageCreateInfo&       imageCreateInfo, 
+                            const vma::AllocationCreateInfo& allocationCreateInfo) const;
+
+    // Create a vma::raii::Image
+    poki::Image createImage(const vk::ImageCreateInfo&       imageCreateInfo) const;
+
+    // Create a vma::raii::Image and vk::raii::ImageView with provided allocation information
+    poki::Image createImage(const vk::ImageCreateInfo&       imageCreateInfo,
+                            const vk::ImageViewCreateInfo&   imageViewCreateInfo,
+                            const vma::AllocationCreateInfo& allocationCreateInfo) const;
+
+    // Create a vma::raii::Image and vk::raii::ImageView
+    poki::Image createImage(const vk::ImageCreateInfo&       imageCreateInfo,
+                            const vk::ImageViewCreateInfo&   imageViewCreateInfo) const;
+
     ////////////////////////////////////
     // Only legal for mapped buffers
 
