@@ -1,5 +1,7 @@
 #pragma once
 
+#include "resources.hpp"
+
 #include <vulkan/vulkan_raii.hpp>
 
 namespace poki {
@@ -29,5 +31,7 @@ struct ImageMemoryBarrierParams {
 
 // Helper function to transition an image from one layout to another
 void cmdImageMemoryBarrier(vk::raii::CommandBuffer& cmd, const ImageMemoryBarrierParams& params);
+
+void cmdImageMemoryBarrier(vk::raii::CommandBuffer& cmd, poki::Image& image, const ImageMemoryBarrierParams& params);
 
 }; // namespace poki

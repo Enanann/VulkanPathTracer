@@ -29,4 +29,14 @@ void cmdImageMemoryBarrier(vk::raii::CommandBuffer& cmd, const ImageMemoryBarrie
     cmd.pipelineBarrier2(dependencyInfo);
 }
 
+void cmdImageMemoryBarrier(vk::raii::CommandBuffer& cmd, poki::Image& image, const ImageMemoryBarrierParams& params) {
+    ImageMemoryBarrierParams local = params;
+    local.image = image.image;
+    local.oldLayout = image.layout;
+
+    cmdImageMemoryBarrier(cmd, local);
+
+    image.layout = params.newLayout;
+}
+
 }; // namespace poki

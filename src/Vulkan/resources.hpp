@@ -50,7 +50,8 @@ struct Image {
     uint32_t            arrayLayers{1};
 
     // `sampler` may exist, NOT managed by `poki::ResourceAllocator`
-    vk::raii::Sampler   sampler{nullptr};
+    // Note: We don't use vk::raii::Sampler here because Sampler can be reuse by multiple image
+    vk::Sampler         sampler{nullptr};
     // `imageView` may exist, managed by `poki::ResourceAllocator`
     vk::raii::ImageView imageView{nullptr};
     vk::ImageLayout     layout{vk::ImageLayout::eUndefined};

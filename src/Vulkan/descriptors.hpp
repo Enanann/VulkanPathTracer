@@ -132,7 +132,7 @@ class WriteSetContainer {
 public:
     // Single element (writeSet.descriptorCount must be 1)
     void append(const vk::WriteDescriptorSet& writeSet, const poki::Buffer& buffer, vk::DeviceSize offset = 0, vk::DeviceSize range = vk::WholeSize);
-    void append(const vk::WriteDescriptorSet& writeSet, const poki::Image& image);
+    void append(const vk::WriteDescriptorSet& writeSet, const poki::Image& image, std::optional<vk::ImageLayout> overrideLayout = std::nullopt);
 
     // TODO: Multiple element (writeSet.descriptorCount > 1)
 

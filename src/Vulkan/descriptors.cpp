@@ -155,16 +155,16 @@ void WriteSetContainer::append(const vk::WriteDescriptorSet& writeSet, const pok
     m_needPointerUpdate = true;
 }
 
-void WriteSetContainer::append(const vk::WriteDescriptorSet& writeSet, const poki::Image& image) {
+void WriteSetContainer::append(const vk::WriteDescriptorSet& writeSet, const poki::Image& image, std::optional<vk::ImageLayout> overrideLayout) {
     assert(writeSet.pBufferInfo == nullptr);
     assert(writeSet.pTexelBufferView == nullptr);
     assert(writeSet.descriptorCount == 1);
     assert(image.imageView != nullptr);
-
+        
     vk::DescriptorImageInfo imageInfo{
         .sampler     = image.sampler,
         .imageView   = image.imageView,
-        .imageLayout = image.layout
+        .imageLayout = overrideLayout.has_value() ? overrideLayout.value() : image.layout
     };
 
     m_writeSets.emplace_back(writeSet).setPImageInfo((const vk::DescriptorImageInfo*)1);
