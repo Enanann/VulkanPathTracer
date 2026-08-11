@@ -55,11 +55,19 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 add_slang_shader_target(
-    ${PROJECT_NAME}_shaders 
+    ${PROJECT_NAME}_graphics_shaders 
     SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/shader_base.slang"
     ENTRY_POINTS 
         "vertMain"
         "fragMain"
 )
-add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_shaders)
+add_slang_shader_target(
+    ${PROJECT_NAME}_compute_shaders
+    SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/gradient.slang"
+    ENTRY_POINTS 
+        "compMain"
+)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_graphics_shaders)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_compute_shaders)
