@@ -24,16 +24,21 @@ private:
     poki::Context                m_context;
     poki::Window                 m_window;
     poki::Swapchain              m_swapchain;
-    poki::DescriptorSetContainer m_descriptorSetContainer_0;
-    poki::DescriptorSetContainer m_descriptorSetContainer_1;
+    poki::DescriptorSetContainer m_fifDescriptorSetContainer;
+    poki::DescriptorSetContainer m_textureDescriptorSetContainer;
+    poki::DescriptorSetContainer m_compDescriptorSetContainer;
+    vk::raii::PipelineLayout     m_computePipelineLayout{nullptr};
+    vk::raii::Pipeline           m_computePipeline{nullptr};
     vk::raii::PipelineLayout     m_pipelineLayout{nullptr};
     poki::GraphicsPipeline       m_graphicsPipeline;
     poki::ManagedCommandPools    m_ManagedCommandPools;
 
     poki::TimelineSemaphore m_timelineSemaphore;
 
-    poki::ResourceAllocator   m_resouceAllocator;
+    poki::ResourceAllocator   m_resourceAllocator;
     poki::Buffer              m_vertexBuffer;
     std::vector<poki::Buffer> m_uniformBuffers;
+    vk::raii::Sampler m_texSampler{nullptr};
     poki::Image m_texture;
+    poki::Image m_gradient;
 };
