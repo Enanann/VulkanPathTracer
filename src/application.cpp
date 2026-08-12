@@ -311,16 +311,8 @@ Application::Application() {
 
         // Calculate gradient
         poki::cmdImageMemoryBarrier(singleTimeCmd, m_gradient, {
-            .srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe,
-            .srcAccessMask = {},
-            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .dstAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
             .oldLayout = vk::ImageLayout::eUndefined,
-            .newLayout = vk::ImageLayout::eGeneral,
-            .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-            .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-            // .image = ,
-            // .subresourceRange = {}
+            .newLayout = vk::ImageLayout::eGeneral
         });
 
         singleTimeCmd.bindPipeline(vk::PipelineBindPoint::eCompute, *m_computePipeline);
@@ -328,30 +320,14 @@ Application::Application() {
         singleTimeCmd.dispatch((m_swapchain.getExtent().width + 15) / 16, (m_swapchain.getExtent().height + 15) / 16, 1);
 
         poki::cmdImageMemoryBarrier(singleTimeCmd, m_gradient, {
-            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .srcAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
-            .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
-            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
             .oldLayout = vk::ImageLayout::eGeneral,
-            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-            .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-            .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-            // .image = ,
-            // .subresourceRange = {}
+            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal
         });
 
         // Copy the texture from staging buffer to image
         poki::cmdImageMemoryBarrier(singleTimeCmd, m_texture, {
-            .srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe,
-            .srcAccessMask = {},
-            .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
-            .dstAccessMask = vk::AccessFlagBits2::eTransferWrite,
             .oldLayout = vk::ImageLayout::eUndefined,
-            .newLayout = vk::ImageLayout::eTransferDstOptimal,
-            .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-            .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-            // .image = ,
-            // .subresourceRange = {}
+            .newLayout = vk::ImageLayout::eTransferDstOptimal
         });
 
         vk::BufferImageCopy2 pRegions{
@@ -372,16 +348,8 @@ Application::Application() {
         singleTimeCmd.copyBufferToImage2(copyBufferToImageInfo);
 
         poki::cmdImageMemoryBarrier(singleTimeCmd, m_texture, {
-            .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
-            .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
-            .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
-            .dstAccessMask = vk::AccessFlagBits2::eShaderSampledRead,
             .oldLayout = vk::ImageLayout::eTransferDstOptimal,
-            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-            .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-            .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-            // .image = ,
-            // .subresourceRange = {}
+            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal
         });
 
         poki::engSingleTimeCommands(singleTimeCmd, m_context.getDeviceRAII(), m_context.getQueueInfo(0).queue);
@@ -459,16 +427,9 @@ void Application::drawFrame() {
         cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
     
         poki::cmdImageMemoryBarrier(cmd, {
-            .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            .srcAccessMask = {},
-            .dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
             .oldLayout = vk::ImageLayout::eUndefined,
             .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
-            .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-            .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-            .image = m_swapchain.getImage(imageIndex),
-            // .subresourceRange = {}
+            .image = m_swapchain.getImage(imageIndex)
         });
     
         vk::ClearValue clearColor{vk::ClearColorValue(0.346704f, 0.337164f, 0.558340f, 1.0f)};
@@ -499,16 +460,9 @@ void Application::drawFrame() {
         cmd.endRendering();
 
         poki::cmdImageMemoryBarrier(cmd, {
-            .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            .srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
-            .dstStageMask = vk::PipelineStageFlagBits2::eBottomOfPipe,
-            .dstAccessMask = {},
             .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
             .newLayout = vk::ImageLayout::ePresentSrcKHR,
-            .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-            .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-            .image = m_swapchain.getImage(imageIndex),
-            // .subresourceRange = {}
+            .image = m_swapchain.getImage(imageIndex)
         });    
         cmd.end();
     }
