@@ -16,13 +16,13 @@ namespace poki {
         .subresourceRange = params.subresourceRange
     };
 
-    if (params.srcStageMask == INFER_PIPELINE_STAGE_PARAM || params.srcAccessMask == INFER_ACCESS_FLAG_PARAM) {
+    if (params.srcStageMask == INFER_PIPELINE_STAGE_PARAM && params.srcAccessMask == INFER_ACCESS_FLAG_PARAM) {
         const auto [srcStageMask, srcAccessMask] = inferPipelineStageAccessTuple(params.oldLayout);
         barrier.srcStageMask  = srcStageMask;
         barrier.srcAccessMask = srcAccessMask;
     }
 
-    if (params.dstStageMask == INFER_PIPELINE_STAGE_PARAM || params.dstAccessMask == INFER_ACCESS_FLAG_PARAM) {
+    if (params.dstStageMask == INFER_PIPELINE_STAGE_PARAM && params.dstAccessMask == INFER_ACCESS_FLAG_PARAM) {
         const auto [dstStageMask, dstAccessMask] = inferPipelineStageAccessTuple(params.newLayout);
         barrier.dstStageMask  = dstStageMask;
         barrier.dstAccessMask = dstAccessMask;

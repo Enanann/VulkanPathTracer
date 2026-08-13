@@ -6,7 +6,7 @@
 #include "shader.hpp"
 #include "vertex.hpp"
 #include "stb_image.h"
-#include "vulkan/vulkan.hpp"
+#include "compute_pipeline.hpp"
 
 #include <vulkan/vulkan.hpp>
 #define GLM_FORCE_RADIANS
@@ -261,7 +261,7 @@ Application::Application() {
     // Storage Image for Compute Shader
     vk::ImageCreateInfo storageCreateInfo{
         .imageType = vk::ImageType::e2D,
-        .format = vk::Format::eR8G8B8A8Unorm,
+        .format = vk::Format::eR32G32B32A32Sfloat,
         .extent = {static_cast<uint32_t>(m_swapchain.getExtent().width), static_cast<uint32_t>(m_swapchain.getExtent().height), 1},
         .mipLevels = 1,
         .arrayLayers = 1,
@@ -273,7 +273,7 @@ Application::Application() {
     };
     vk::ImageViewCreateInfo storageViewCreateInfo{
         .viewType = vk::ImageViewType::e2D,
-        .format = vk::Format::eR8G8B8A8Unorm,
+        .format = vk::Format::eR32G32B32A32Sfloat,
         .subresourceRange = {.aspectMask = vk::ImageAspectFlagBits::eColor, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}
     };
     m_gradient = m_resourceAllocator.createImage(storageCreateInfo, storageViewCreateInfo);
@@ -307,6 +307,7 @@ Application::Application() {
     //      2. Transfer the texture data from `texStagingBuffer` to `m_texture`.
     // These two do not depend on each other, so no synchronization is required between them
     { 
+        auto compGroupCounts{poki::getGroupCounts(m_swapchain.getExtent(), {16, 16})};
         auto singleTimeCmd{poki::createSingleTimeCommands(m_context.getDeviceRAII(), tempCmdPool)};
 
         // Calculate gradient
@@ -317,7 +318,7 @@ Application::Application() {
 
         singleTimeCmd.bindPipeline(vk::PipelineBindPoint::eCompute, *m_computePipeline);
         singleTimeCmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *m_computePipelineLayout, 0, *m_compDescriptorSetContainer.getSet(0), nullptr);
-        singleTimeCmd.dispatch((m_swapchain.getExtent().width + 15) / 16, (m_swapchain.getExtent().height + 15) / 16, 1);
+        singleTimeCmd.dispatch(compGroupCounts.width, compGroupCounts.height, compGroupCounts.depth);
 
         poki::cmdImageMemoryBarrier(singleTimeCmd, m_gradient, {
             .oldLayout = vk::ImageLayout::eGeneral,
