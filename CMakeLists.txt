@@ -58,8 +58,11 @@ function (add_slang_shader_target TARGET)
                     -profile spirv_1_4+spvRayQueryKHR
                     -emit-spirv-directly
                     -fvk-use-entrypoint-name ${SLANG_ENTRY_ARGS}
+                    -depfile ${OUT_FILE}.d 
+                    -I "${CMAKE_CURRENT_SOURCE_DIR}/Shaders"
                     -o ${OUT_FILE}
             WORKING_DIRECTORY ${SHADERS_DIR}
+            DEPFILE ${OUT_FILE}.d
             DEPENDS ${SHADERS_DIR} ${SRC}
             COMMENT "Compiling Slang shader ${SRC}"
             VERBATIM
