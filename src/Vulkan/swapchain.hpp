@@ -3,6 +3,7 @@
 #include "resources.hpp"
 
 #include "GLFW/glfw3.h"
+#include "vulkan/vulkan.hpp"
 #include <vulkan/vulkan_raii.hpp>
 
 #include <cstdint>
@@ -36,7 +37,7 @@ public:
 
     void requestRebuild() {m_needRebuild = true;};
     bool needRebuild() const {return m_needRebuild;}
-    [[nodiscard]] vk::Format      getSwapchainImageFormat() const noexcept {return m_surfaceFormat.surfaceFormat.format;}
+    [[nodiscard]] vk::Format      getSwapchainImageFormat() const noexcept {return m_surfaceFormat.format;}
     const vk::raii::SwapchainKHR& getSwapchainRAII() const noexcept {return m_swapchain;}
     vk::Image                     getImage(uint32_t imageIndex) const noexcept {return m_images[imageIndex].image;}
     const vk::raii::ImageView&    getImageView(uint32_t imageIndex) const noexcept {return m_images[imageIndex].imageView;}
@@ -76,7 +77,7 @@ private:
     };
 
     // Choose the most common format (vk::Format::eB8G8R8A8Srgb)
-    vk::SurfaceFormat2KHR chooseSurfaceFormat(const std::vector<vk::SurfaceFormat2KHR>& availableSurfaceFormats);
+    vk::SurfaceFormatKHR chooseSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableSurfaceFormats);
 
     /*
      * Swapchain's present mode is chosen based on vSync
@@ -94,12 +95,12 @@ private:
      * If `currentExtent` is equal to UINT32_MAX, then we must choose the size ourself (e.g. using glfwGetFramebufferSize)
      * Else, use the actual window size
     */
-    vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilities2KHR& capabilities, GLFWwindow* window);
+    vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities, GLFWwindow* window);
 
 private:
     vk::raii::SurfaceKHR   m_surface{nullptr};
     vk::raii::SwapchainKHR m_swapchain{nullptr};
-    vk::SurfaceFormat2KHR  m_surfaceFormat{};
+    vk::SurfaceFormatKHR  m_surfaceFormat{};
     vk::Extent2D           m_swapExtent{};
 
     std::vector<Image>          m_images{};              // Swapchain images and their views
@@ -112,7 +113,7 @@ private:
 
     vk::PresentModeKHR                 m_preferredVsyncOnMode{vk::PresentModeKHR::eMailbox};    // use if available
     vk::PresentModeKHR                 m_preferredVsyncOffMode{vk::PresentModeKHR::eImmediate}; // use if available
-    std::vector<vk::SurfaceFormat2KHR> m_availableSurfaceFormats{};
+    std::vector<vk::SurfaceFormatKHR>  m_availableSurfaceFormats{};
 
     uint32_t m_imageCount{};     // The swapchain's image count
     uint32_t m_framesInFlight{}; // Max frames in flight (<= m_imageCount)

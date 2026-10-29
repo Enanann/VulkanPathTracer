@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.hpp"
 #include "context.hpp"
 #include "window.hpp"
 #include "swapchain.hpp"
@@ -9,8 +10,7 @@
 #include "resources.hpp"
 #include "resource_allocator.hpp"
 #include "descriptors.hpp"
-
-constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+#include "scene.hpp"
 
 class Application {
 public:
@@ -24,7 +24,6 @@ private:
     poki::Context                m_context;
     poki::Window                 m_window;
     poki::Swapchain              m_swapchain;
-    poki::DescriptorSetContainer m_fifDescriptorSetContainer;
     poki::DescriptorSetContainer m_textureDescriptorSetContainer;
     poki::DescriptorSetContainer m_compDescriptorSetContainer;
     vk::raii::PipelineLayout     m_computePipelineLayout{nullptr};
@@ -37,8 +36,15 @@ private:
 
     poki::ResourceAllocator   m_resourceAllocator;
     poki::Buffer              m_vertexBuffer;
-    std::vector<poki::Buffer> m_uniformBuffers;
     vk::raii::Sampler m_texSampler{nullptr};
-    poki::Image m_texture;
-    poki::Image m_gradient;
+    // poki::Image m_texture;
+    poki::Image m_rt;
+
+    poki::Scene  m_scene;
+    poki::Buffer m_sceneBuffer;
+
+    uint32_t m_samples{500};
+    uint32_t m_sampleCounter{1};
+
+    uint32_t m_currentFrameIndex{0};
 };

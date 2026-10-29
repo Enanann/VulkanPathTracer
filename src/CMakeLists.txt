@@ -27,6 +27,10 @@ set(SOURCES
     Vulkan/resource_allocator.cpp
     Vulkan/vertex.cpp
     Vulkan/descriptors.cpp
+
+    # Ray tracing
+    RayTracer/scene.cpp
+    RayTracer/material.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -44,6 +48,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     Utils
     Vulkan
     Window
+    RayTracer
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -66,6 +71,7 @@ add_slang_shader_target(
     ${PROJECT_NAME}_compute_shaders
     SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/gradient.slang"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Shaders/rtiow.slang"
     ENTRY_POINTS 
         "compMain"
 )

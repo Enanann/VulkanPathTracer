@@ -51,4 +51,30 @@ void cmdImageMemoryBarrier(vk::raii::CommandBuffer& cmd, poki::Image& image, con
     image.layout = params.newLayout;
 }
 
+[[nodiscard]] constexpr vk::BufferMemoryBarrier2 makeBufferMemoryBarrier(const BufferMemoryBarrierParams& params) {
+    vk::BufferMemoryBarrier2 barrier {
+        .srcStageMask        = params.srcStageMask,
+        .srcAccessMask       = params.srcAccessMask,
+        .dstStageMask        = params.dstStageMask,
+        .dstAccessMask       = params.dstAccessMask,
+        .srcQueueFamilyIndex = params.srcQueueFamilyIndex,
+        .dstQueueFamilyIndex = params.dstQueueFamilyIndex,
+        .buffer              = params.buffer,
+        .offset              = params.offset,
+        .size                = params.size
+    };
+
+    return barrier;
+}
+
+void cmdBufferMemoryBarrier(vk::raii::CommandBuffer& cmd, const BufferMemoryBarrierParams& params) {
+    auto barrier{makeBufferMemoryBarrier(params)};
+
+    vk::DependencyInfo dependencyInfo{
+        .bufferMemoryBarrierCount = 1,
+        .pBufferMemoryBarriers    = &barrier
+    };
+    cmd.pipelineBarrier2(dependencyInfo);
+}
+
 }; // namespace poki

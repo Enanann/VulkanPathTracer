@@ -28,7 +28,7 @@ void poki::Window::init(const WindowInitInfo& windowInitInfo) {
     }
 
     glfwSetWindowUserPointer(m_window, this);
-    
+    LOGI("{}", glfwGetPlatform());
     LOGI("Create GLFW window successfully");
     LOGI(" - Window size : {}x{}", windowInitInfo.width, windowInitInfo.height);
     LOGI(" - Title       : {}", windowInitInfo.title);

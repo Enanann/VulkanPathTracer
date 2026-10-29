@@ -10,10 +10,6 @@ public struct Ray {
         return m_orig + _t * m_dir;
     }
 
-    public float3 test() {
-        return float3(1.0, 1.0, 0.0);
-    }
-
     public float3 orig() {return m_orig;}
     public float3 dir() {return m_dir;}
 

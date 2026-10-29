@@ -51,7 +51,7 @@ Application::Application() {
     m_window.init(windowInitInfo);
 
     poki::ContextInitInfo contextInitInfo{
-        .instanceExtensions = {vk::KHRGetSurfaceCapabilities2ExtensionName},
+        // .instanceExtensions = {vk::KHRGetSurfaceCapabilities2ExtensionName}, 
         .deviceExtensions = {vk::KHRSwapchainExtensionName,
                             vk::KHRSpirv14ExtensionName,
                             vk::KHRSynchronization2ExtensionName},
@@ -76,16 +76,11 @@ Application::Application() {
     m_swapchain.initResources(m_window.getGLFWHandle());
 
     // Descriptor Sets
-    poki::DescriptorBindings uniformBufferBinding; // FiF (UBO)
-    uniformBufferBinding.addBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
-    m_fifDescriptorSetContainer.init(uniformBufferBinding, m_context.getDeviceRAII(), MAX_FRAMES_IN_FLIGHT, {}, vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
-
     poki::DescriptorBindings textureBinding; // The same across multiple FiF (Texture) 
     textureBinding.addBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
-    textureBinding.addBinding(1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
     m_textureDescriptorSetContainer.init(textureBinding, m_context.getDeviceRAII(), 1, {}, vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
 
-    std::vector<vk::DescriptorSetLayout> descriptorSetLayout = {*m_fifDescriptorSetContainer.getLayout(), *m_textureDescriptorSetContainer.getLayout()};
+    std::vector<vk::DescriptorSetLayout> descriptorSetLayout = {*m_textureDescriptorSetContainer.getLayout()};
     // Graphics Pipeline
     std::vector<poki::ShaderStageInfo> shaderStages{{vk::ShaderStageFlagBits::eVertex, "vertMain"}, {vk::ShaderStageFlagBits::eFragment, "fragMain"}};
     auto vertexBindingDescription{Vertex::getBindingDescription()};
@@ -112,17 +107,26 @@ Application::Application() {
     // Compute descriptors
     poki::DescriptorBindings bindings_2;
     bindings_2.addBinding(0, vk::DescriptorType::eStorageImage, 1, vk::ShaderStageFlagBits::eCompute);
+    bindings_2.addBinding(1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute); /*SSBO with scene data do not need to be duplicated per frame*/
     m_compDescriptorSetContainer.init(bindings_2, m_context.getDeviceRAII(), 1, {}, vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet);
     std::vector<vk::DescriptorSetLayout> compDescriptorSetLayout = {*m_compDescriptorSetContainer.getLayout()};
 
     // Compute pipeline
     vk::PipelineLayoutCreateInfo computePipelineLayoutCreateInfo{
         .setLayoutCount = static_cast<uint32_t>(compDescriptorSetLayout.size()),
-        .pSetLayouts    = compDescriptorSetLayout.data()
+        .pSetLayouts    = compDescriptorSetLayout.data(),
+        .pushConstantRangeCount = 1,
+        // .pPushConstantRanges =
     };
+    vk::PushConstantRange range = {
+        .stageFlags = vk::ShaderStageFlagBits::eCompute,
+        .offset     = 0,
+        .size       = 4
+    };
+    computePipelineLayoutCreateInfo.setPPushConstantRanges(&range);
     m_computePipelineLayout = vk::raii::PipelineLayout(m_context.getDeviceRAII(), computePipelineLayoutCreateInfo);
 
-    auto compShader = poki::createShaderModule(m_context.getDeviceRAII() ,"build/src/Shaders/gradient.spv");
+    auto compShader = poki::createShaderModule(m_context.getDeviceRAII() ,"build/src/Shaders/rtiow.spv");
     vk::PipelineShaderStageCreateInfo ssCreateInfo{
         .stage = vk::ShaderStageFlagBits::eCompute,
         .module = compShader,
@@ -189,75 +193,6 @@ Application::Application() {
         poki::engSingleTimeCommands(singleTimeCmd, m_context.getDeviceRAII(), m_context.getQueueInfo(0).queue);
     }
 
-    // Uniform Buffer
-    auto uniformBufferSize = sizeof(UniformBufferObject);
-    for (auto i{0}; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-        poki::Buffer ubo = m_resourceAllocator.createBuffer(
-            {
-                .size = uniformBufferSize,
-                .usage = vk::BufferUsageFlagBits::eUniformBuffer,
-                .sharingMode = vk::SharingMode::eExclusive
-            }, 
-            {
-                .flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
-                .usage = vma::MemoryUsage::eAuto,
-                .requiredFlags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-            }
-        );
-        m_uniformBuffers.emplace_back(std::move(ubo));
-    }
-
-    // Texture (Create a temporary purple texture instead of loading an image with `stbi_load()`.
-    // See the commented-out code below.)
-    int textWidth{2};
-    int texHeight{2};
-    int texChannels{4};
-    // stbi_uc* pixels{stbi_load("/path_to_image", &textWidth, &texHeight, &texChannels, STBI_rgb_alpha)};
-    // if (!pixels) {
-    //     throw std::runtime_error("Failed to load texture image");
-    // }
-    vk::DeviceSize texSize{static_cast<uint64_t>(textWidth * texHeight * 4)};
-    std::array<stbi_uc, 2 * 2 * 4> pixels;
-    for (size_t i = 0; i < pixels.size(); i += 4) {
-        pixels[i + 0] = 200; // R
-        pixels[i + 1] = 160; // G
-        pixels[i + 2] = 255; // B
-        pixels[i + 3] = 255; // A
-    }
-    
-    poki::Buffer texStagingBuffer = m_resourceAllocator.createBuffer(
-        {
-            .size = texSize,
-            .usage = vk::BufferUsageFlagBits::eTransferSrc,
-            .sharingMode = vk::SharingMode::eExclusive
-        },
-        {
-            .flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
-            .usage = vma::MemoryUsage::eAuto
-        }
-    );
-    std::memcpy(texStagingBuffer.mapping, pixels.data(), texSize);
-    // stbi_image_free(pixels);
-
-    vk::ImageCreateInfo texCreateInfo{
-        .imageType = vk::ImageType::e2D,
-        .format = vk::Format::eR8G8B8A8Srgb,
-        .extent = {static_cast<uint32_t>(textWidth), static_cast<uint32_t>(texHeight), 1},
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = vk::SampleCountFlagBits::e1,
-        .tiling = vk::ImageTiling::eOptimal,
-        .usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-        .sharingMode = vk::SharingMode::eExclusive,
-        .initialLayout = vk::ImageLayout::eUndefined
-    };
-    vk::ImageViewCreateInfo texViewCreateInfo{
-        .viewType = vk::ImageViewType::e2D,
-        .format = vk::Format::eR8G8B8A8Srgb,
-        .subresourceRange = {.aspectMask = vk::ImageAspectFlagBits::eColor, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}
-    };
-    m_texture = m_resourceAllocator.createImage(texCreateInfo, texViewCreateInfo);
-
     // Storage Image for Compute Shader
     vk::ImageCreateInfo storageCreateInfo{
         .imageType = vk::ImageType::e2D,
@@ -276,7 +211,7 @@ Application::Application() {
         .format = vk::Format::eR32G32B32A32Sfloat,
         .subresourceRange = {.aspectMask = vk::ImageAspectFlagBits::eColor, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}
     };
-    m_gradient = m_resourceAllocator.createImage(storageCreateInfo, storageViewCreateInfo);
+    m_rt = m_resourceAllocator.createImage(storageCreateInfo, storageViewCreateInfo);
 
     // Sampler
     vk::PhysicalDeviceProperties properties = m_context.getPhysicalDeviceRAII().getProperties();
@@ -293,76 +228,96 @@ Application::Application() {
                                             .compareOp        = vk::CompareOp::eAlways};
     m_texSampler = vk::raii::Sampler(m_context.getDeviceRAII(), samplerInfo);
 
-    m_texture.sampler = *m_texSampler;
-    m_gradient.sampler = *m_texSampler;
+    m_rt.sampler = *m_texSampler;
+
+    // Scene
+    m_scene.build();
+    vk::DeviceSize storageBufferSize = m_scene.size() * sizeof(Sphere);
+    poki::Buffer storageStagingBuffer = m_resourceAllocator.createBuffer(
+        {
+            .size = storageBufferSize,
+            .usage = vk::BufferUsageFlagBits::eTransferSrc,
+            .sharingMode = vk::SharingMode::eExclusive
+        },
+        {
+            .flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            .usage = vma::MemoryUsage::eAuto
+        }
+    );
+    std::memcpy(storageStagingBuffer.mapping, m_scene.data().data(), storageBufferSize);
+
+    m_sceneBuffer = m_resourceAllocator.createBuffer(
+        {
+            .size = storageBufferSize,
+            .usage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+            .sharingMode = vk::SharingMode::eExclusive
+        },
+        {
+            .flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite | vma::AllocationCreateFlagBits::eMapped,
+            .usage = vma::MemoryUsage::eAuto
+        }
+    );
 
     // Since we only perform the compute operation once to calculate the gradient,
     // we need to call `Device::updateDescriptorSets()` so that the compute shader knows the descriptor layout.
     poki::WriteSetContainer compWriteSet;
-    compWriteSet.append(m_compDescriptorSetContainer.makeWriteSet(0, 0), m_gradient, vk::ImageLayout::eGeneral);
+    compWriteSet.append(m_compDescriptorSetContainer.makeWriteSet(0, 0), m_rt, vk::ImageLayout::eGeneral);
+    compWriteSet.append(m_compDescriptorSetContainer.makeWriteSet(1, 0), m_sceneBuffer);
     m_context.getDeviceRAII().updateDescriptorSets(compWriteSet.data(), {});
+
+    poki::WriteSetContainer graphicsWriteSet;
+    graphicsWriteSet.append(m_textureDescriptorSetContainer.makeWriteSet(0, 0), m_rt, vk::ImageLayout::eShaderReadOnlyOptimal);
+    m_context.getDeviceRAII().updateDescriptorSets(graphicsWriteSet.data(), {});
     
     // Perform two independent operations during preprocessing:
-    //      1. Calculate the gradient and store it in `m_gradient`.
-    //      2. Transfer the texture data from `texStagingBuffer` to `m_texture`.
-    // These two do not depend on each other, so no synchronization is required between them
+    //      1. Transfer the scene data from `storageStageBuffer` to `m_storageBuffer`
+    //      2. Calculate the -gradient- scene and store it in `m_gradient`.
+    // 1 must be done before 2, so we will need to make a buffer memory barrier
     { 
         auto compGroupCounts{poki::getGroupCounts(m_swapchain.getExtent(), {16, 16})};
         auto singleTimeCmd{poki::createSingleTimeCommands(m_context.getDeviceRAII(), tempCmdPool)};
 
-        // Calculate gradient
-        poki::cmdImageMemoryBarrier(singleTimeCmd, m_gradient, {
-            .oldLayout = vk::ImageLayout::eUndefined,
-            .newLayout = vk::ImageLayout::eGeneral
-        });
-
-        singleTimeCmd.bindPipeline(vk::PipelineBindPoint::eCompute, *m_computePipeline);
-        singleTimeCmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *m_computePipelineLayout, 0, *m_compDescriptorSetContainer.getSet(0), nullptr);
-        singleTimeCmd.dispatch(compGroupCounts.width, compGroupCounts.height, compGroupCounts.depth);
-
-        poki::cmdImageMemoryBarrier(singleTimeCmd, m_gradient, {
-            .oldLayout = vk::ImageLayout::eGeneral,
-            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal
-        });
-
-        // Copy the texture from staging buffer to image
-        poki::cmdImageMemoryBarrier(singleTimeCmd, m_texture, {
-            .oldLayout = vk::ImageLayout::eUndefined,
-            .newLayout = vk::ImageLayout::eTransferDstOptimal
-        });
-
-        vk::BufferImageCopy2 pRegions{
-            .bufferOffset = 0, 
-            .bufferRowLength = 0, 
-            .bufferImageHeight = 0,
-            .imageSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 }, 
-            .imageOffset = {0, 0, 0}, 
-            .imageExtent = {static_cast<uint32_t>(textWidth), static_cast<uint32_t>(texHeight), 1} 
+        // Transfer scene data
+        vk::BufferCopy copyRegion{
+            .srcOffset = 0,
+            .dstOffset = 0,
+            .size      = storageBufferSize
         };
-        vk::CopyBufferToImageInfo2 copyBufferToImageInfo{
-            .srcBuffer = texStagingBuffer.buffer,
-            .dstImage  = m_texture.image,
-            .dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
-            .regionCount = 1,
-            .pRegions = &pRegions
-        };
-        singleTimeCmd.copyBufferToImage2(copyBufferToImageInfo);
-
-        poki::cmdImageMemoryBarrier(singleTimeCmd, m_texture, {
-            .oldLayout = vk::ImageLayout::eTransferDstOptimal,
-            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+        singleTimeCmd.copyBuffer(storageStagingBuffer.buffer, m_sceneBuffer.buffer, copyRegion);
+        poki::cmdBufferMemoryBarrier(singleTimeCmd, {
+            .srcStageMask  = vk::PipelineStageFlagBits2::eTransfer, 
+            .dstStageMask  = vk::PipelineStageFlagBits2::eComputeShader,
+            .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderStorageRead,
+            .buffer        = m_sceneBuffer.buffer
         });
 
+        // // Calculate -gradient- scene
+        // poki::cmdImageMemoryBarrier(singleTimeCmd, m_rt, {
+        //     .oldLayout = vk::ImageLayout::eUndefined,
+        //     .newLayout = vk::ImageLayout::eGeneral
+        // });
+
+        // vk::PushConstantsInfo pcInfo{
+        //     .layout = m_computePipelineLayout,
+        //     .stageFlags = vk::ShaderStageFlagBits::eCompute,
+        //     .offset = 0,
+        //     .size = sizeof(uint32_t),
+        //     .pValues = &m_samples
+        // };
+        // singleTimeCmd.bindPipeline(vk::PipelineBindPoint::eCompute, *m_computePipeline);
+        // singleTimeCmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *m_computePipelineLayout, 0, *m_compDescriptorSetContainer.getSet(0), nullptr);
+        // singleTimeCmd.pushConstants2(pcInfo);
+        // singleTimeCmd.dispatch(compGroupCounts.width, compGroupCounts.height, compGroupCounts.depth);
+
+
+        // poki::cmdImageMemoryBarrier(singleTimeCmd, m_rt, {
+        //     .oldLayout = vk::ImageLayout::eGeneral,
+        //     .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+        // });
+        
         poki::engSingleTimeCommands(singleTimeCmd, m_context.getDeviceRAII(), m_context.getQueueInfo(0).queue);
-    }
-    
-    poki::WriteSetContainer graphicsWriteSet;
-    for (auto i{0}; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-        graphicsWriteSet.append(m_fifDescriptorSetContainer.makeWriteSet(0, i), m_uniformBuffers[i]);
-    }
-    graphicsWriteSet.append(m_textureDescriptorSetContainer.makeWriteSet(0, 0), m_texture);
-    graphicsWriteSet.append(m_textureDescriptorSetContainer.makeWriteSet(1, 0), m_gradient);
-    m_context.getDeviceRAII().updateDescriptorSets(graphicsWriteSet.data(), {});
+    } 
 }
 
 void Application::run() {
@@ -380,20 +335,23 @@ void Application::drawFrame() {
         return;
     }
 
+    // Get the current FiF's index
+    uint64_t frameIndex = m_currentFrameIndex % MAX_FRAMES_IN_FLIGHT;
+    m_currentFrameIndex++;
+
     // wait for last frame (timelinesemaphore)
-    uint64_t waitValue = m_timelineSemaphore.getWaitValue(MAX_FRAMES_IN_FLIGHT);
-    auto semaphoreResult = m_context.getDeviceRAII().waitSemaphores(
+    uint64_t lastFrameWaitValue = m_timelineSemaphore.getWaitValue(frameIndex);
+    auto waitLastFrameResult = m_context.getDeviceRAII().waitSemaphores(
         vk::SemaphoreWaitInfo{
             .semaphoreCount = 1,
             .pSemaphores    = &*m_timelineSemaphore.get(),
-            .pValues        = &waitValue
+            .pValues        = &lastFrameWaitValue
         }, 
         std::numeric_limits<uint64_t>::max()
     );
     //
 
     // Get the current frame in flight and reset its command buffer
-    uint64_t frameIndex = m_timelineSemaphore.getCurrentValue() % MAX_FRAMES_IN_FLIGHT;
     m_ManagedCommandPools.resetPool(frameIndex);
 
     // Acquire swapchain image
@@ -407,27 +365,89 @@ void Application::drawFrame() {
         throw std::runtime_error("Failed to acquire swapchain image");
     }
 
-    // ubo
-    auto  currentTime = std::chrono::high_resolution_clock::now();
-    float time        = std::chrono::duration<float>(currentTime - startTime).count();
+    // Timeline semaphore values
+    uint64_t lastSignaledValue = m_timelineSemaphore.getCurrentValue();
+    uint64_t computeSignalValue = m_timelineSemaphore.nextSignalValue();
+    uint64_t graphicsSignalValue = m_timelineSemaphore.nextSignalValue();
 
-    UniformBufferObject ubo{};
-    // ubo.model = glm::mat4(1.0f);
-    // ubo.view = glm::mat4(1.0f);
-    // ubo.proj = glm::mat4(1.0f);
-    ubo.model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view  = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj  = glm::perspective(glm::radians(45.0f), static_cast<float>(m_swapchain.getExtent().width) / static_cast<float>(m_swapchain.getExtent().height), 0.1f, 10.0f);
-    ubo.proj[1][1] *= -1;
-
-    std::memcpy(m_uniformBuffers[frameIndex].mapping, &ubo, sizeof(ubo));
-
-    // Record command buffer
-    auto& cmd = m_ManagedCommandPools.acquireCommandBuffer(frameIndex);
-    { // Rendering
-        cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    // Record Compute command buffer
+    if (m_sampleCounter <= m_samples) {
+        { // Compute
+            auto& computeCmd = m_ManagedCommandPools.acquireCommandBuffer(frameIndex);
+            computeCmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
     
-        poki::cmdImageMemoryBarrier(cmd, {
+            auto compGroupCounts{poki::getGroupCounts(m_swapchain.getExtent(), {16, 16})};
+    
+            vk::PushConstantsInfo pcInfo{
+                .layout = m_computePipelineLayout,
+                .stageFlags = vk::ShaderStageFlagBits::eCompute,
+                .offset = 0,
+                .size = sizeof(m_sampleCounter),
+                .pValues = &m_sampleCounter
+            };
+    
+            // Change layout of m_rt from the previous frame
+            poki::cmdImageMemoryBarrier(computeCmd, m_rt,  {
+                .oldLayout = vk::ImageLayout::eUndefined,
+                .newLayout = vk::ImageLayout::eGeneral
+            });
+    
+            computeCmd.bindPipeline(vk::PipelineBindPoint::eCompute, *m_computePipeline);
+            computeCmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *m_computePipelineLayout, 0, *m_compDescriptorSetContainer.getSet(0), nullptr);
+            computeCmd.pushConstants2(pcInfo);
+            computeCmd.dispatch(compGroupCounts.width, compGroupCounts.height, compGroupCounts.depth);
+    
+            // Change layout of m_rt for graphics recording
+            poki::cmdImageMemoryBarrier(computeCmd, m_rt,  {
+                .oldLayout = vk::ImageLayout::eGeneral,
+                .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+            });
+    
+            computeCmd.end();
+    
+            auto& queue = m_context.getQueueInfo(0).queue;
+    
+            vk::SemaphoreSubmitInfo waitCompute{
+                .semaphore   = *m_timelineSemaphore.get(),
+                .value       = lastSignaledValue, 
+                .stageMask   = vk::PipelineStageFlagBits2::eComputeShader,
+                .deviceIndex = 0
+            };
+    
+            vk::SemaphoreSubmitInfo signalCompute{
+                .semaphore   = *m_timelineSemaphore.get(),
+                .value       = computeSignalValue,
+                .stageMask   = vk::PipelineStageFlagBits2::eComputeShader,
+                .deviceIndex = 0
+            };
+    
+            vk::CommandBufferSubmitInfo cmdSubmitInfo{
+                .commandBuffer = *computeCmd,
+                .deviceMask = 0
+            };
+    
+            const vk::SubmitInfo2 computeSubmitInfo{
+                .waitSemaphoreInfoCount = 1,
+                .pWaitSemaphoreInfos    = &waitCompute,
+                .commandBufferInfoCount = 1,
+                .pCommandBufferInfos    = &cmdSubmitInfo,
+                .signalSemaphoreInfoCount = 1,
+                .pSignalSemaphoreInfos    = &signalCompute
+            };
+        
+            queue.submit2(computeSubmitInfo);
+        }
+        m_sampleCounter++;
+    } else {
+        computeSignalValue = 0; // prevent the graphics from waiting indefinitely (stuck at frame = `m_samples`)
+    }
+
+    // Record Graphics command buffer
+    { // Rendering
+        auto& graphicsCmd = m_ManagedCommandPools.acquireCommandBuffer(frameIndex);
+        graphicsCmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    
+        poki::cmdImageMemoryBarrier(graphicsCmd, {
             .oldLayout = vk::ImageLayout::eUndefined,
             .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
             .image = m_swapchain.getImage(imageIndex)
@@ -449,63 +469,71 @@ void Application::drawFrame() {
             .pColorAttachments = &attachmentInfo
         };
     
-        cmd.beginRendering(renderingInfo);
-        cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline.getPipelineRAII());
+        graphicsCmd.beginRendering(renderingInfo);
+        graphicsCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline.getPipelineRAII());
     
-        cmd.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapchain.getExtent().width), static_cast<float>(m_swapchain.getExtent().height)));
-        cmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapchain.getExtent()));
-        cmd.bindVertexBuffers(0, *m_vertexBuffer.buffer, {0});
-        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_fifDescriptorSetContainer.getSet(frameIndex), nullptr);
-        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 1, *m_textureDescriptorSetContainer.getSet(0), nullptr);
-        cmd.draw(3, 1, 0, 0);
-        cmd.endRendering();
+        graphicsCmd.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapchain.getExtent().width), static_cast<float>(m_swapchain.getExtent().height)));
+        graphicsCmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapchain.getExtent()));
+        graphicsCmd.bindVertexBuffers(0, *m_vertexBuffer.buffer, {0});
+        graphicsCmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_textureDescriptorSetContainer.getSet(0), nullptr);
+        graphicsCmd.draw(3, 1, 0, 0);
+        graphicsCmd.endRendering();
 
-        poki::cmdImageMemoryBarrier(cmd, {
+        poki::cmdImageMemoryBarrier(graphicsCmd, {
             .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
             .newLayout = vk::ImageLayout::ePresentSrcKHR,
             .image = m_swapchain.getImage(imageIndex)
         });    
-        cmd.end();
+        graphicsCmd.end();
+    
+        auto& queue = m_context.getQueueInfo(0).queue;
+    
+        vk::SemaphoreSubmitInfo waitImageAvail{
+            .semaphore = *m_swapchain.getImageAvailableSemaphore(frameIndex),
+            .value = 0,
+            .stageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            .deviceIndex = 0
+        };
+        vk::SemaphoreSubmitInfo waitComputeFinished{
+            .semaphore = *m_timelineSemaphore.get(),
+            .value     = computeSignalValue,
+            .stageMask = vk::PipelineStageFlagBits2::eVertexShader | vk::PipelineStageFlagBits2::eFragmentShader,
+            .deviceIndex = 0
+        };
+        std::array<vk::SemaphoreSubmitInfo, 2> waitSemaphores = {waitImageAvail, waitComputeFinished};
+
+        vk::SemaphoreSubmitInfo signalGraphics{
+            .semaphore = *m_timelineSemaphore.get(),
+            .value     = graphicsSignalValue,
+            .stageMask = vk::PipelineStageFlagBits2::eAllCommands,
+            .deviceIndex = 0
+        };
+        vk::SemaphoreSubmitInfo signalRenderFinished{
+            .semaphore = *m_swapchain.getRenderFinishedSemaphore(imageIndex),
+            .value     = 0,
+            .stageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            .deviceIndex = 0
+        };
+        std::array<vk::SemaphoreSubmitInfo, 2> signalSemaphores = {signalGraphics, signalRenderFinished};
+    
+        vk::CommandBufferSubmitInfo cmdSubmitInfo{
+            .commandBuffer = *graphicsCmd,
+            .deviceMask = 0
+        };
+    
+        const vk::SubmitInfo2 graphicsSubmitInfo{
+            .waitSemaphoreInfoCount = static_cast<uint32_t>(waitSemaphores.size()),
+            .pWaitSemaphoreInfos    = waitSemaphores.data(),
+            .commandBufferInfoCount = 1,
+            .pCommandBufferInfos    = &cmdSubmitInfo,
+            .signalSemaphoreInfoCount = static_cast<uint32_t>(signalSemaphores.size()),
+            .pSignalSemaphoreInfos    = signalSemaphores.data()
+        };
+    
+        queue.submit2(graphicsSubmitInfo);
+        
+        m_timelineSemaphore.getFrameCompletionArray()[frameIndex] = graphicsSignalValue;
     }
-
-    auto& queue = m_context.getQueueInfo(0).queue;
-    uint64_t signalValue = m_timelineSemaphore.nextSignalValue();
-
-    vk::SemaphoreSubmitInfo waitImageAvail{
-        .semaphore = *m_swapchain.getImageAvailableSemaphore(frameIndex),
-        .value = 0,
-        .stageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        .deviceIndex = 0
-    };
-    vk::SemaphoreSubmitInfo signalGraphics{
-        .semaphore = *m_timelineSemaphore.get(),
-        .value     = signalValue,
-        .stageMask = vk::PipelineStageFlagBits2::eAllCommands,
-        .deviceIndex = 0
-    };
-    vk::SemaphoreSubmitInfo signalRenderFinished{
-        .semaphore = *m_swapchain.getRenderFinishedSemaphore(imageIndex),
-        .value     = 0,
-        .stageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        .deviceIndex = 0
-    };
-    std::array<vk::SemaphoreSubmitInfo, 2> signalSemaphores = {signalGraphics, signalRenderFinished};
-
-    vk::CommandBufferSubmitInfo cmdSubmitInfo{
-        .commandBuffer = *cmd,
-        .deviceMask = 0
-    };
-
-    const vk::SubmitInfo2 graphicsSubmitInfo{
-        .waitSemaphoreInfoCount = 1,
-        .pWaitSemaphoreInfos    = &waitImageAvail,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos    = &cmdSubmitInfo,
-        .signalSemaphoreInfoCount = static_cast<uint32_t>(signalSemaphores.size()),
-        .pSignalSemaphoreInfos    = signalSemaphores.data()
-    };
-
-    queue.submit2(graphicsSubmitInfo);
 
     auto presentResult = m_swapchain.presentFrame(imageIndex);
     if ((presentResult == vk::Result::eSuboptimalKHR) || (presentResult == vk::Result::eErrorOutOfDateKHR)) {

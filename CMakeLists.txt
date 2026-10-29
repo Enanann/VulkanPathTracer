@@ -77,6 +77,8 @@ endfunction()
 find_package (Vulkan REQUIRED)
 
 # glfw
+set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
+set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/GLFW)
 
 # glm

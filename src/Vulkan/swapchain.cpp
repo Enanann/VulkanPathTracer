@@ -24,14 +24,14 @@ void Swapchain::init(const SwapchainInitInfo& initInfo, vk::raii::SurfaceKHR&& s
 }
 
 void Swapchain::initResources(GLFWwindow* window) {
-    m_availableSurfaceFormats = m_physicalDevice->getSurfaceFormats2KHR({.surface = m_surface});
+    m_availableSurfaceFormats = m_physicalDevice->getSurfaceFormatsKHR(m_surface);
     std::vector<vk::PresentModeKHR> availablePresentModes{m_physicalDevice->getSurfacePresentModesKHR(m_surface)};
-    vk::SurfaceCapabilities2KHR capabilities{m_physicalDevice->getSurfaceCapabilities2KHR({.surface = m_surface})}; 
+    vk::SurfaceCapabilitiesKHR capabilities{m_physicalDevice->getSurfaceCapabilitiesKHR(m_surface)}; 
 
-    uint32_t imageCount = capabilities.surfaceCapabilities.minImageCount + 1;
+    uint32_t imageCount = capabilities.minImageCount + 1;
     // maxImageCount = 0 meant that there're unlimited images
-    imageCount = (capabilities.surfaceCapabilities.maxImageCount > 0 && imageCount > capabilities.surfaceCapabilities.maxImageCount) 
-                    ? capabilities.surfaceCapabilities.maxImageCount 
+    imageCount = (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) 
+                    ? capabilities.maxImageCount 
                     : imageCount;
 
     m_imageCount = imageCount;
@@ -43,13 +43,13 @@ void Swapchain::initResources(GLFWwindow* window) {
         .flags            = vk::SwapchainCreateFlagsKHR(),
         .surface          = m_surface,
         .minImageCount    = imageCount,
-        .imageFormat      = m_surfaceFormat.surfaceFormat.format,
-        .imageColorSpace  = m_surfaceFormat.surfaceFormat.colorSpace,
+        .imageFormat      = m_surfaceFormat.format,
+        .imageColorSpace  = m_surfaceFormat.colorSpace,
         .imageExtent      = m_swapExtent,
         .imageArrayLayers = 1,
         .imageUsage       = vk::ImageUsageFlagBits::eColorAttachment,
         .imageSharingMode = vk::SharingMode::eExclusive,
-        .preTransform     = capabilities.surfaceCapabilities.currentTransform,
+        .preTransform     = capabilities.currentTransform,
         .compositeAlpha   = vk::CompositeAlphaFlagBitsKHR::eOpaque,
         .presentMode      = chooseSwapPresentMode(availablePresentModes),
         .clipped          = true,
@@ -63,7 +63,7 @@ void Swapchain::initResources(GLFWwindow* window) {
         const vk::ImageViewCreateInfo imageViewCreateInfo {
             .image            = swapImages[i],
             .viewType         = vk::ImageViewType::e2D,
-            .format           = m_surfaceFormat.surfaceFormat.format,
+            .format           = m_surfaceFormat.format,
             // .components       =,
             .subresourceRange = {
                 .aspectMask     = vk::ImageAspectFlagBits::eColor,
@@ -138,11 +138,11 @@ void Swapchain::reinitResources(GLFWwindow* window) {
     }
 }
 
-vk::SurfaceFormat2KHR Swapchain::chooseSurfaceFormat(const std::vector<vk::SurfaceFormat2KHR>& availableSurfaceFormats) {
+vk::SurfaceFormatKHR Swapchain::chooseSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableSurfaceFormats) {
     assert(!availableSurfaceFormats.empty());
     for (const auto& format : availableSurfaceFormats) {
-        if (format.surfaceFormat.format == vk::Format::eB8G8R8A8Srgb
-            && format.surfaceFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
+        if (format.format == vk::Format::eB8G8R8A8Srgb
+            && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
         {
             return format;
         }
@@ -169,9 +169,9 @@ vk::PresentModeKHR Swapchain::chooseSwapPresentMode(const std::vector<vk::Presen
     return vk::PresentModeKHR::eFifo;
 }
 
-vk::Extent2D Swapchain::chooseSwapExtent(const vk::SurfaceCapabilities2KHR& capabilities, GLFWwindow* window) {
-    if (capabilities.surfaceCapabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
-        return capabilities.surfaceCapabilities.currentExtent;
+vk::Extent2D Swapchain::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities, GLFWwindow* window) {
+    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+        return capabilities.currentExtent;
     }
 
     int width{};
@@ -180,11 +180,11 @@ vk::Extent2D Swapchain::chooseSwapExtent(const vk::SurfaceCapabilities2KHR& capa
 
     return {
         .width  = std::clamp<uint32_t>(width,
-                                      capabilities.surfaceCapabilities.minImageExtent.width,
-                                      capabilities.surfaceCapabilities.maxImageExtent.width),
+                                      capabilities.minImageExtent.width,
+                                      capabilities.maxImageExtent.width),
         .height = std::clamp<uint32_t>(height,
-                                       capabilities.surfaceCapabilities.minImageExtent.height,
-                                       capabilities.surfaceCapabilities.maxImageExtent.height)
+                                       capabilities.minImageExtent.height,
+                                       capabilities.maxImageExtent.height)
     };
 }
 
