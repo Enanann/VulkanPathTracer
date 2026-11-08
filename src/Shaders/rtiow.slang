@@ -21,6 +21,10 @@ struct PushConstant {
 [vk_push_constant]
 PushConstant pc;
 
+static const int RR_MIN_DEPTH = 5;      // Minimum bounces before applying Russian Roulette
+static const float RR_FLOOR   = 0.001f; // Minimun survival propability
+static const float RR_CAP     = 0.95f;  // Maximin survival propability
+
 bool hitt(const Ray r, float t_min, float t_max, inout HitRecord hit_rec) {
     HitRecord temp_rec;
     bool hit_anything = false;
@@ -45,25 +49,35 @@ bool hitt(const Ray r, float t_min, float t_max, inout HitRecord hit_rec) {
 float3 ray_color(Ray r, inout Random rng) {
     HitRecord rec;
     float3 throughput = float3(1.0, 1.0, 1.0);
-    int max_depth = 50;
-    while (max_depth > 0) {
-        max_depth--;
-        if (hitt(r, 0.001, 1000000.0, rec)) {
-            Ray scattered;
-            float3 attenuation;
-            if (scatter(r, rec, attenuation, scattered, rng)) {
-                r = scattered;
-                throughput *= attenuation;
-            } else {
-                return float3(0.0);
-            }
-        } else {
+    const int MAX_DEPTH = 50;
+    for (int bounce = 0; bounce < MAX_DEPTH; bounce++) {
+        if (!hitt(r, 0.001, 1000000.0, rec)) {
             float3 unit_dir = normalize(r.dir());
             // map y from [-1.0, 1.0] to [0.0, 1.0]
             float y = (unit_dir.y + 1.0) * 0.5;
 
             float3 sky_color = lerp(float3(1.0, 1.0, 1.0), float3(0.3, 0.5, 0.7), y);
             return throughput * sky_color;
+        }
+
+        Ray scattered;
+        float3 attenuation;
+        if (!scatter(r, rec, attenuation, scattered, rng)) {   
+            return float3(0.0);
+        }
+
+        r = scattered;
+        throughput *= attenuation;
+
+        // Russian roulette
+        // Survival probability (p) scales with throughput; surviving paths are boosted by 1/P
+        // so the estimator remains unbiased. Only applied after RR_MIN_DEPTH bounces.
+        if (bounce >= RR_MIN_DEPTH) {
+            float p = clamp(max3(throughput.r, throughput.g, throughput.b), RR_FLOOR, RR_CAP);
+            if (rng.random_float() >= p) {
+                break; // terminate ray
+            }
+            throughput /= p; // boost energy of surviving rays
         }
     }
     return float3(0.0);
